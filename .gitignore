@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+logs/
+archive/
+vendor/tesseract/
+.env
+.venv/
+venv/
