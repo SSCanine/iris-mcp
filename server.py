@@ -36,6 +36,7 @@ from iris import verify as verify_mod
 from iris import fingerprint as fingerprint_mod
 from iris import launcher as launcher_mod
 from iris import panels as panels_mod
+from iris import recipes as recipes_mod
 from iris.self_test import run_self_test as run_self_test_impl
 
 
@@ -552,6 +553,45 @@ def iris_status() -> dict[str, Any]:
 def self_test() -> dict[str, Any]:
     """Spawn the test harness, run a battery of checks, return a structured report."""
     return run_self_test_impl()
+
+
+# ---------------------------------------------------------------------------
+# Recipes: named workflows that chain primitives. See iris/recipes.py.
+# Every @mcp.tool() above is auto-registered as a recipe action below so any
+# YAML in iris/recipes/ can call them by name.
+# ---------------------------------------------------------------------------
+def _register_actions_for_recipes() -> None:
+    """Expose every @mcp.tool function in this module to the recipe engine."""
+    for _name, _obj in list(globals().items()):
+        if _name.startswith("_") or _name in ("main", "mcp", "log", "registry"):
+            continue
+        _fn = getattr(_obj, "fn", None)
+        if callable(_fn):
+            recipes_mod.register_action(_name, _fn)
+
+
+_register_actions_for_recipes()
+
+
+@mcp.tool()
+def list_recipes() -> dict[str, Any]:
+    """List all available recipes in iris/recipes/."""
+    return {"recipes": recipes_mod.list_recipes()}
+
+
+@mcp.tool()
+def run_recipe(name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Execute a named recipe (e.g. 'obs.start_recording', 'chrome.open_url').
+
+    Args:
+        name: recipe name. Resolves to recipes/{name}.yaml or by the recipe's
+              declared `name:` field.
+        args: input args the recipe accepts (see each recipe's `inputs:` list).
+
+    Returns a structured trace of each step's result, plus a top-level `ok`
+    indicator. On failure, includes the failing step index, action, and error.
+    """
+    return recipes_mod.run_recipe(name, args=args or {})
 
 
 # ---------------------------------------------------------------------------
