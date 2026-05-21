@@ -377,11 +377,27 @@ def click(token: str | None = None, target: str | None = None,
           x: int | None = None, y: int | None = None,
           button: str = "left", clicks: int = 1,
           verify: bool = False, verify_text: str | None = None,
+          verify_text_disappears: bool = False,
           verify_timeout_ms: int = 2000) -> dict[str, Any]:
-    """Click. Three modes:
-    - click(x, y) - direct coords (legacy)
+    """Click. Three call modes:
+    - click(x, y) - direct screen coords
     - click(token, target='Save') - find target in focused window then click center
-    - click(token) - just click center of focused window
+    - click(token) - click center of the focused window
+
+    Closed-loop verification (when verify=True and a token is provided):
+    - If verify_text is given AND verify_text_disappears=True, wait for that
+      text to vanish (e.g. click 'Stop Recording' then wait for 'Stop
+      Recording' to disappear).
+    - Else if verify_text is given, wait for that text to appear (default for
+      verify_text path).
+    - Else, wait for the window's UIA fingerprint to change. This catches
+      ANY structural effect of the click (button disappeared, label changed,
+      modal closed, etc.) without the caller needing to name a specific
+      post-state.
+
+    The result includes `verified: {...}` with the poll outcome. Verification
+    failure does NOT mark the click as failed (we still clicked), it just
+    surfaces the timeout so the caller can decide.
     """
     if button not in ("left", "right", "middle"):
         raise ValueError("button must be left/right/middle")
@@ -417,10 +433,22 @@ def click(token: str | None = None, target: str | None = None,
     }
     if verify and token is not None:
         tk = _resolve_token(token)
-        v = verify_text or target
-        if v:
-            wait = verify_mod.wait_for_text(tk, v, timeout_ms=verify_timeout_ms)
-            out["verified"] = wait
+        if verify_text:
+            if verify_text_disappears:
+                out["verified"] = verify_mod.wait_for_no_text(
+                    tk, verify_text, timeout_ms=verify_timeout_ms,
+                )
+                out["verify_mode"] = "text_disappears"
+            else:
+                out["verified"] = verify_mod.wait_for_text(
+                    tk, verify_text, timeout_ms=verify_timeout_ms,
+                )
+                out["verify_mode"] = "text_appears"
+        else:
+            out["verified"] = verify_mod.wait_for_drift(
+                tk, timeout_ms=verify_timeout_ms,
+            )
+            out["verify_mode"] = "fingerprint_drift"
     return out
 
 
