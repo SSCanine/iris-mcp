@@ -1,17 +1,22 @@
 # Iris v2 Design
 
 **Date:** 2026-04-27
-**Status:** Approved (brainstorm complete, six sections signed off by Cenny)
-**Author:** Daddy Wolf (Claude) for Cenny
-**Implementation:** Pending (writing-plans skill next)
+**Status:** Implemented
 
 ---
 
 ## Overview
 
-Iris is Daddy Wolf's eyes and hands on Cenny's desktop. v1 (current) is a single-file FastMCP server that captures screens and drives mouse/keyboard at the pixel level. It works, but every interaction costs a screenshot and a Claude reasoning round-trip.
+Iris is a desktop control MCP server for Windows. v1 was a single-file
+FastMCP server that captured screens and drove mouse/keyboard at the pixel
+level. It worked, but every interaction cost a screenshot and an LLM
+reasoning round-trip.
 
-v2 evolves Iris from a "vision-only" tool into a **hybrid sensorimotor system** with three internal layers (Spatial, Vision, Semantic) coordinated by a Resolver. The brain metaphor: v2 gives Iris a proper occipital lobe (vision + OCR for "seeing" pixels) AND a frontal cortex (Win32 spatial reasoning + UIA semantic queries for "knowing" structure without looking).
+v2 evolves Iris from a vision-only tool into a **hybrid sensorimotor system**
+with three internal layers (Spatial, Vision, Semantic) coordinated by a
+Resolver. The metaphor: v2 gives Iris a proper occipital lobe (vision + OCR
+for "seeing" pixels) AND a frontal cortex (Win32 spatial reasoning + UIA
+semantic queries for "knowing" structure without looking).
 
 The architectural commitment: **backend-agnostic primitives**. Claude calls `find(token, "Start Recording")` and the resolver picks UIA, OCR, or vision-handoff transparently. UIA-friendly apps (Chrome, File Explorer, parts of OBS) become near-instant and zero-token. Apps without UIA fall back to OCR with no API change.
 
@@ -86,7 +91,7 @@ Claude only sees one tool. The backend it actually used shows up in the response
 ### File layout
 
 ```
-H:\Claude\tools\iris\
+iris-mcp/
 ├── server.py             MCP entry, tool definitions, ~150 lines
 ├── iris/
 │   ├── __init__.py
@@ -256,7 +261,7 @@ Three end-to-end traces show how the layers cooperate.
 
 ### Scenario A: "OBS, start recording" (happy path)
 
-OBS is already running, on monitor 2 (right 1440p), windowed. Cenny says "OBS, start recording." Claude calls:
+OBS is already running on a secondary monitor, windowed. The user asks "OBS, start recording." The LLM calls:
 
 ```
 focus("obs", raise=False)
@@ -454,7 +459,7 @@ Step 3 is the honest fail. No silent retry storms, no infinite loops. Three stri
 
 ### Logging
 
-Every failure logs to `H:\Claude\tools\iris\logs\iris.log` with:
+Every failure logs to `<repo>/logs/iris.log` with:
 - Timestamp, token id, target, backends tried, why each failed
 - When `IRIS_DEBUG=1`: dump UIA tree to a sibling debug file
 
@@ -518,15 +523,15 @@ Same battery as integration tests, exposed as a tool Claude can invoke. Returns 
 }
 ```
 
-Cenny runs `iris.self_test()` after install or upgrade. Iris confirms it works, or tells exactly what broke.
+Run `iris.self_test()` after install or upgrade. Iris confirms it works, or tells exactly what broke.
 
 ### Layer 4: Manual e2e runbook
 
-`H:\Claude\tools\iris\docs\test-runbook.md` with a checklist for things only a real human can verify:
+`docs/test-runbook.md` (planned) with a checklist for things only a real human can verify:
 
 - [ ] Open OBS. Run `focus + find Start Recording + click + verify`. Recording started?
-- [ ] Open Chrome. `focus + navigate to gmail.com + verify Gmail loaded`.
-- [ ] Open File Explorer. `focus + navigate to H:\Claude + verify in correct folder`.
+- [ ] Open Chrome. `focus + navigate to a URL + verify page loaded`.
+- [ ] Open File Explorer. `focus + navigate to a folder + verify`.
 - [ ] With OBS on monitor 2 and Chrome on monitor 1, `focus("obs")` returns monitor 2.
 - [ ] Drag OBS to monitor 1 mid-session. Next `inspect(token)` shows monitor=1.
 - [ ] Trigger drift: Open OBS Settings popup. Verify popup is detected and focus shifts.
@@ -571,7 +576,7 @@ Results append to `logs/bench.jsonl`. Future regressions are visible as deltas.
 
 ### Backwards compatibility
 
-Zero-config migration. Cenny doesn't touch MCP config. The old `server.py` path stays the same. Every existing tool keeps working.
+Zero-config migration. The old `server.py` path stays the same. Every existing tool keeps working.
 
 | Old tool | v2 status |
 |----------|-----------|
@@ -594,7 +599,7 @@ All new tools (`focus`, `find`, `discover`, `launch`, `self_test`, etc.) are add
 - Existing: `mss`, `pyautogui`, `pywin32`, `mcp`
 
 **Native (one-time install for OCR):**
-Tesseract binary bundled under `H:\Claude\tools\iris\vendor\tesseract\`. Adds ~50MB to the repo, but zero install friction. Iris configures `pytesseract.tesseract_cmd` to point at the bundled binary at startup.
+Tesseract binary located via `tesseract_bootstrap.py` which checks `vendor/tesseract/`, then `C:\Program Files\Tesseract-OCR\`, then PATH. The repo ships without the binary (users install via `winget install UB-Mannheim.TesseractOCR` or place it in `vendor/`).
 
 ### Phased rollout
 
@@ -631,7 +636,7 @@ Phase 2 only happens if we feel the pain. No speculative building.
 
 ### Migration mechanics (Phase 1 ship)
 
-1. Build v2 in `H:\Claude\tools\iris\` using the new package layout. Old `server.py` keeps running until v2 is ready.
+1. Build v2 using the new package layout. Old `server.py` keeps running until v2 is ready.
 2. When v2 is feature-complete and self-test passes and manual runbook passes:
    - Move old `server.py` to `archive/server_v1_2026-04-27.py` (preserved for rollback)
    - Activate new package `server.py` (the thin MCP entry point)

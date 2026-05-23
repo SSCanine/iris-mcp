@@ -4,9 +4,32 @@ __pycache__/
 *.pyd
 .pytest_cache/
 *.egg-info/
+
+# Build artifacts
+build/
+dist/
+
+# Runtime state
 logs/
+.internal/
 archive/
 vendor/tesseract/
+
+# Local Python envs
 .env
 .venv/
 venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Bench output
+iris_bench_events.jsonl
+iris_bench_report.json
+iris_bench_failures/

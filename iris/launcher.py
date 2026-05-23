@@ -12,7 +12,26 @@ import yaml
 from iris.spatial import enumerate_windows, match_window, _make_window_info, get_monitor_for_window
 
 
-APPS_YAML = Path(__file__).parent.parent / "apps.yaml"
+# Search order for the user's apps.yaml:
+#   1. $IRIS_APPS env var (explicit override)
+#   2. <cwd>/apps.yaml
+#   3. User config dir, e.g. %APPDATA%/iris-mcp/apps.yaml on Windows
+#   4. <repo>/apps.yaml (kept for develop-from-checkout convenience)
+# The first one that exists wins. Missing file is not an error: DEFAULT_APPS
+# always covers the common cases.
+def _apps_yaml_search_paths() -> list[Path]:
+    out: list[Path] = []
+    env = os.environ.get("IRIS_APPS")
+    if env:
+        out.append(Path(env))
+    out.append(Path.cwd() / "apps.yaml")
+    try:
+        from platformdirs import user_config_dir
+        out.append(Path(user_config_dir("iris-mcp")) / "apps.yaml")
+    except ImportError:
+        pass
+    out.append(Path(__file__).parent.parent / "apps.yaml")
+    return out
 
 DEFAULT_APPS = {
     "obs": {
@@ -43,26 +62,44 @@ DEFAULT_APPS = {
 
 
 def load_apps() -> dict:
-    if APPS_YAML.exists():
+    """Load app registry from the first apps.yaml found in search paths.
+
+    DEFAULT_APPS is always the base. Any user yaml entries are merged on top,
+    so users can override individual apps (e.g. point `obs` at a different
+    install path) without redefining every entry.
+    """
+    merged = dict(DEFAULT_APPS)
+    for candidate in _apps_yaml_search_paths():
         try:
-            with APPS_YAML.open("r", encoding="utf-8") as f:
-                user_cfg = yaml.safe_load(f) or {}
-            merged = dict(DEFAULT_APPS)
-            merged.update(user_cfg)
-            return merged
+            if candidate.exists():
+                with candidate.open("r", encoding="utf-8") as f:
+                    user_cfg = yaml.safe_load(f) or {}
+                merged.update(user_cfg)
+                break
         except Exception:
-            pass
-    return DEFAULT_APPS
+            continue
+    return merged
 
 
-def write_default_apps_yaml() -> None:
-    if APPS_YAML.exists():
-        return
-    APPS_YAML.write_text(
+def write_default_apps_yaml(target: Optional[Path] = None) -> Path:
+    """Materialize a user apps.yaml seeded with DEFAULT_APPS at the user
+    config dir (or `target` if given). Returns the path written. Existing
+    files are NOT overwritten."""
+    if target is None:
+        try:
+            from platformdirs import user_config_dir
+            target = Path(user_config_dir("iris-mcp")) / "apps.yaml"
+        except ImportError:
+            target = Path.cwd() / "apps.yaml"
+    if target.exists():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
         "# Iris app registry. Override or add entries here.\n"
         + yaml.safe_dump(DEFAULT_APPS, sort_keys=False),
         encoding="utf-8",
     )
+    return target
 
 
 def launch(app_name: str, *, wait_seconds: float = 5.0) -> dict:

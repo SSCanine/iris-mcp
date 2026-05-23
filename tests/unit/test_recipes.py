@@ -32,8 +32,8 @@ def test_register_and_list():
 
 
 def test_substitute_simple_string():
-    out = recipes_mod._substitute("hello ${input.name}", {"input": {"name": "Cenny"}})
-    assert out == "hello Cenny"
+    out = recipes_mod._substitute("hello ${input.name}", {"input": {"name": "Iris"}})
+    assert out == "hello Iris"
 
 
 def test_substitute_fullmatch_preserves_type():

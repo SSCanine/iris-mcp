@@ -2,7 +2,7 @@
 1. vision.capture_window uses PrintWindow correctly (occluded windows OK)
 2. spatial.bring_to_front actually raises the target window
 
-Run from H:/Claude/tools/iris:
+Run from the repo root:
     python tests/smoke_printwindow_and_raise.py
 
 Outputs a JSON report with pass/fail per check.

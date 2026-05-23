@@ -79,6 +79,129 @@ def control_for_hwnd(hwnd: int):
         return None
 
 
+def control_from_point(x: int, y: int) -> Optional[UIAControl]:
+    """Return the UIA control under screen-absolute (x, y), or None.
+
+    Used to upgrade OCR text hits to the enclosing clickable widget. The text
+    bbox returned by Tesseract is the glyph bounds, not the button surface, so
+    clicking the text center can miss buttons with offset labels (icon+text,
+    list rows, etc.). Asking UIA "what's under this point" lets us click the
+    widget center instead, and lets us call Invoke() to bypass the mouse.
+    """
+    if not HAS_UIA:
+        return None
+    try:
+        ctrl = auto.ControlFromPoint(int(x), int(y))
+    except Exception:
+        return None
+    return _control_to_uia(ctrl)
+
+
+# Classes whose UIA Invoke pattern is structurally broken: it returns success
+# but the underlying widget never fires its click handler. Currently this is
+# Tk (which uses Win32 class "Button" inside "TkChild" panes but draws the
+# button itself, so the OS-synthesized invoke goes nowhere). When we see one
+# of these in the ancestor chain we refuse to invoke and force a geometric
+# mouse click instead. Add other offenders here as the bench finds them.
+_INVOKE_DENYLIST_CLASSES = frozenset({
+    "TkTopLevel", "TkChild",
+})
+
+
+def _has_denylisted_ancestor(raw_control, max_levels: int = 10) -> bool:
+    """Walk up the UIA parent chain looking for a class name we know has
+    broken Invoke. We start at the control itself so a denylisted control
+    that's its own root still gets caught."""
+    cur = raw_control
+    for _ in range(max_levels):
+        if cur is None:
+            return False
+        try:
+            cls = str(getattr(cur, "ClassName", "") or "")
+        except Exception:
+            cls = ""
+        if cls in _INVOKE_DENYLIST_CLASSES:
+            return True
+        try:
+            cur = cur.GetParentControl()
+        except Exception:
+            return False
+    return False
+
+
+def is_invokable(control: UIAControl) -> bool:
+    """True if a UIAControl exposes a click-equivalent pattern.
+
+    Invoke (buttons), Toggle (checkboxes/toggle buttons), SelectionItem (list
+    items, tabs), and ExpandCollapse (combo boxes, tree nodes) all let a
+    caller activate the control without simulating a mouse click.
+
+    This is the LENIENT check used by find_clickable_ancestor() to decide
+    "is this a button-shaped thing?" so the OCR widget-upgrade can still
+    swap text bounds for widget bounds. Use is_invoke_trusted() before
+    actually calling Invoke (denylist-aware).
+    """
+    if control is None or control.raw is None:
+        return False
+    raw = control.raw
+    for getter in (
+        "GetInvokePattern",
+        "GetTogglePattern",
+        "GetSelectionItemPattern",
+        "GetExpandCollapsePattern",
+    ):
+        try:
+            fn = getattr(raw, getter, None)
+            if fn is None:
+                continue
+            p = fn()
+            if p is not None:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def is_invoke_trusted(control: UIAControl) -> bool:
+    """True if is_invokable(control) AND the control's ancestor chain does
+    NOT include a class with known-broken Invoke (Tk widgets fake UIA but
+    don't fire their command on synthesized invoke). Use this to decide
+    whether to call Invoke vs fall back to a geometric mouse click.
+    """
+    if not is_invokable(control):
+        return False
+    return not _has_denylisted_ancestor(control.raw)
+
+
+def find_clickable_ancestor(control: UIAControl, max_levels: int = 6) -> Optional[UIAControl]:
+    """Walk up the UIA parent chain looking for the smallest invokable ancestor.
+
+    A label inside a button is not itself invokable; its parent Button is.
+    A label inside a list item is not invokable; the ListItem is. Walking up
+    finds the actual click target without overshooting (we stop at the first
+    invokable, not the root).
+    """
+    if control is None or control.raw is None:
+        return None
+    if is_invokable(control):
+        return control
+    cur = control.raw
+    for _ in range(max_levels):
+        try:
+            parent = cur.GetParentControl()
+        except Exception:
+            return None
+        if parent is None:
+            return None
+        wrapped = _control_to_uia(parent)
+        if wrapped is None:
+            return None
+        if is_invokable(wrapped):
+            return wrapped
+        cur = parent
+    return None
+
+
 def supports_uia(hwnd: int, pid: int) -> bool:
     """Probe whether this window/pid has any usable UIA children. Cached per pid."""
     if not HAS_UIA:
@@ -191,6 +314,39 @@ def walk_tree(hwnd: int, *, max_depth: int = 6, max_nodes: int = 500) -> list[di
 # ---------------------------------------------------------------------------
 # Invocation
 # ---------------------------------------------------------------------------
+def try_pattern_click(control: UIAControl) -> dict:
+    """Activate a control via UIA pattern, no mouse. Tries Invoke, Toggle,
+    SelectionItem.Select, ExpandCollapse.Expand in priority order. Returns
+    {ok: bool, pattern: str} or {ok: False, reason: str}.
+
+    Unlike invoke(action='click'), this does NOT fall back to a positional
+    click. Callers that want a guaranteed-fire click should handle the
+    fallback themselves (so they control which mouse API runs).
+    """
+    if control is None or control.raw is None:
+        return {"ok": False, "reason": "no_control"}
+    raw = control.raw
+    attempts = [
+        ("GetInvokePattern",         "Invoke",   "invoke"),
+        ("GetTogglePattern",         "Toggle",   "toggle"),
+        ("GetSelectionItemPattern",  "Select",   "selection_item"),
+        ("GetExpandCollapsePattern", "Expand",   "expand_collapse"),
+    ]
+    for getter, action_name, label in attempts:
+        try:
+            fn = getattr(raw, getter, None)
+            if fn is None:
+                continue
+            p = fn()
+            if p is None:
+                continue
+            getattr(p, action_name)()
+            return {"ok": True, "pattern": label}
+        except Exception as e:
+            return {"ok": False, "reason": f"{label}_failed:{type(e).__name__}:{e}"}
+    return {"ok": False, "reason": "no_clickable_pattern"}
+
+
 def invoke(control: UIAControl, action: str = "click", value: Optional[str] = None) -> dict:
     """Invoke an action on a control using the right UIA pattern.
 

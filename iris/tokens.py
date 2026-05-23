@@ -48,6 +48,17 @@ class FocusToken:
     def age_seconds(self) -> float:
         return time.time() - self.created_at
 
+    def current_bounds(self) -> Optional[Rect]:
+        """Live screen-absolute bounds. None if the window is dead/minimized.
+
+        Use this anywhere coords matter (OCR translation, click clamp). The
+        token's bounds_at_creation is a snapshot and goes stale the moment the
+        user drags the window. Pixel-accurate clicks require asking Windows
+        right now.
+        """
+        from iris import spatial as _spatial
+        return _spatial.current_bounds(self.hwnd)
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,

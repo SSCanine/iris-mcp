@@ -15,6 +15,41 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
+
+# ---------------------------------------------------------------------------
+# DPI awareness MUST be set BEFORE pyautogui, win32gui, mss, uiautomation,
+# or anything else asks Windows for a coordinate. Once any thread has touched
+# a Win32 coord API, the process's DPI mode is locked.
+#
+# PER_MONITOR_AWARE_V2 (-4) reports physical pixels per monitor, which is the
+# only mode that works correctly on mixed-DPI multi-monitor setups (e.g. one
+# display at 100%, another at 125%, a third at 150%). Older modes (System
+# Aware, PMA_v1) fall back to virtualized coords on the non-primary monitors
+# and synthesized clicks miss the visible target by the DPI scale factor.
+# ---------------------------------------------------------------------------
+def _set_dpi_awareness() -> str:
+    import ctypes
+    try:
+        ctx = ctypes.c_void_p(-4)  # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctx):
+            return "per_monitor_v2"
+    except (AttributeError, OSError):
+        pass
+    try:
+        if ctypes.windll.shcore.SetProcessDpiAwareness(2) == 0:
+            return "per_monitor_v1"
+    except (AttributeError, OSError):
+        pass
+    try:
+        if ctypes.windll.user32.SetProcessDPIAware():
+            return "system_aware"
+    except (AttributeError, OSError):
+        pass
+    return "unaware"
+
+
+_DPI_MODE = _set_dpi_awareness()
+
 import pyautogui
 
 from mcp.server.fastmcp import FastMCP
@@ -37,6 +72,8 @@ from iris import fingerprint as fingerprint_mod
 from iris import launcher as launcher_mod
 from iris import panels as panels_mod
 from iris import recipes as recipes_mod
+from iris import input as input_mod
+from iris import system as system_mod
 from iris.self_test import run_self_test as run_self_test_impl
 
 
@@ -46,9 +83,29 @@ pyautogui.PAUSE = 0.0
 
 # ---------------------------------------------------------------------------
 # Logging - file only. STDOUT/STDERR MUST stay clean for MCP stdio transport.
+#
+# Log location priority: $IRIS_LOG_DIR -> user data dir (when platformdirs is
+# available) -> <repo>/logs (when running from a checkout). This keeps
+# pip-installed instances out of site-packages but lets a develop-from-source
+# checkout keep its logs co-located with the code.
 # ---------------------------------------------------------------------------
-LOG_DIR = _HERE / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+def _resolve_log_dir() -> Path:
+    env = os.environ.get("IRIS_LOG_DIR")
+    if env:
+        return Path(env)
+    repo_logs = _HERE / "logs"
+    if repo_logs.exists() or (_HERE / "iris").exists():
+        # Running from a source checkout: keep logs alongside the code.
+        return repo_logs
+    try:
+        from platformdirs import user_log_dir
+        return Path(user_log_dir("iris-mcp"))
+    except ImportError:
+        return repo_logs
+
+
+LOG_DIR = _resolve_log_dir()
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +127,22 @@ def _resolve_token(token_id: str) -> FocusToken:
     if tk is None:
         raise ValueError(f"unknown_token:{token_id}")
     return tk
+
+
+def _point_on_any_monitor(x: int, y: int) -> bool:
+    """True if (x, y) is inside any physical monitor's bounds.
+
+    Used as a sanity gate before a click. Catches clicks that would land in
+    the dead zone between monitors (the user's right monitor is offset 274px
+    lower than primary, so (3500, 100) is on no display) or wildly off-screen.
+    """
+    try:
+        for m in spatial_mod.list_monitors():
+            if m.contains_point(x, y):
+                return True
+    except Exception:
+        return True  # if we can't enumerate monitors, don't refuse the click
+    return False
 
 
 def _make_token_for_window(info) -> FocusToken:
@@ -169,49 +242,50 @@ def screen_info() -> dict[str, Any]:
 
 @mcp.tool()
 def mouse_pos() -> dict[str, int]:
-    """Get current cursor position."""
-    x, y = pyautogui.position()
+    """Get current cursor position (physical pixels)."""
+    x, y = input_mod.position()
     return {"x": int(x), "y": int(y)}
 
 
 @mcp.tool()
 def mouse_move(x: int, y: int, duration: float = 0.0) -> dict[str, Any]:
-    """Move cursor to (x, y)."""
-    pyautogui.moveTo(int(x), int(y), duration=max(0.0, float(duration)))
+    """Move cursor to (x, y). duration is honored only when > 0."""
+    if duration and float(duration) > 0:
+        pyautogui.moveTo(int(x), int(y), duration=float(duration))
+    else:
+        input_mod.move(int(x), int(y))
     return {"ok": True, "x": int(x), "y": int(y)}
 
 
 @mcp.tool()
 def mouse_click(x: int | None = None, y: int | None = None,
                 button: str = "left", clicks: int = 1) -> dict[str, Any]:
-    """Click the mouse at (x, y) or current position."""
-    if button not in ("left", "right", "middle"):
-        raise ValueError(f"button must be left/right/middle, got {button!r}")
-    kwargs: dict[str, Any] = {"button": button, "clicks": int(clicks)}
-    if x is not None and y is not None:
-        kwargs["x"] = int(x)
-        kwargs["y"] = int(y)
-    pyautogui.click(**kwargs)
-    final = pyautogui.position()
-    return {"ok": True, "x": int(final.x), "y": int(final.y), "button": button, "clicks": int(clicks)}
+    """Click the mouse at (x, y) or current position. Atomic SendInput delivery."""
+    return input_mod.click(
+        x=int(x) if x is not None else None,
+        y=int(y) if y is not None else None,
+        button=button, clicks=int(clicks),
+    )
 
 
 @mcp.tool()
 def mouse_drag(start_x: int, start_y: int, end_x: int, end_y: int,
                button: str = "left", duration: float = 0.3) -> dict[str, Any]:
-    """Drag the mouse from start to end."""
-    pyautogui.moveTo(int(start_x), int(start_y), duration=0.0)
-    pyautogui.dragTo(int(end_x), int(end_y), duration=max(0.0, float(duration)), button=button)
-    return {"ok": True, "from": [int(start_x), int(start_y)], "to": [int(end_x), int(end_y)]}
+    """Drag the mouse from start to end. Stepped motion so apps detect a drag."""
+    return input_mod.drag(
+        int(start_x), int(start_y), int(end_x), int(end_y),
+        button=button, duration_ms=int(max(0.0, float(duration)) * 1000),
+    )
 
 
 @mcp.tool()
 def mouse_scroll(amount: int, x: int | None = None, y: int | None = None) -> dict[str, Any]:
     """Scroll the mouse wheel. Positive = up, negative = down."""
-    if x is not None and y is not None:
-        pyautogui.moveTo(int(x), int(y), duration=0.0)
-    pyautogui.scroll(int(amount))
-    return {"ok": True, "amount": int(amount)}
+    return input_mod.scroll(
+        int(amount),
+        x=int(x) if x is not None else None,
+        y=int(y) if y is not None else None,
+    )
 
 
 @mcp.tool()
@@ -378,11 +452,19 @@ def click(token: str | None = None, target: str | None = None,
           button: str = "left", clicks: int = 1,
           verify: bool = False, verify_text: str | None = None,
           verify_text_disappears: bool = False,
-          verify_timeout_ms: int = 2000) -> dict[str, Any]:
+          verify_timeout_ms: int = 2000,
+          prefer_invoke: bool = True) -> dict[str, Any]:
     """Click. Three call modes:
     - click(x, y) - direct screen coords
     - click(token, target='Save') - find target in focused window then click center
     - click(token) - click center of the focused window
+
+    When prefer_invoke=True (default) and the resolved hit is a UIA control
+    that exposes Invoke/Toggle/Select/Expand, the click is delivered via UIA
+    pattern instead of moving the mouse. Pattern clicks bypass coord math,
+    DPI scaling, occlusion, and animation timing. Set prefer_invoke=False
+    to force a geometric mouse click (useful for testing or for apps that
+    react to real input events but not synthesized UIA invokes).
 
     Closed-loop verification (when verify=True and a token is provided):
     - If verify_text is given AND verify_text_disappears=True, wait for that
@@ -404,9 +486,13 @@ def click(token: str | None = None, target: str | None = None,
 
     target_x, target_y = None, None
     backend = "direct"
+    tk: Optional[FocusToken] = None
+    invoke_control: Optional[object] = None  # populated when UIA invoke is viable
 
     if x is not None and y is not None:
         target_x, target_y = int(x), int(y)
+        if token is not None:
+            tk = _resolve_token(token)  # keep token for verify, but coords are raw
     elif token is not None:
         tk = _resolve_token(token)
         if not token_revalidate(tk):
@@ -420,17 +506,79 @@ def click(token: str | None = None, target: str | None = None,
             target_x = b["x"] + b["width"] // 2
             target_y = b["y"] + b["height"] // 2
             backend = r.backend
+            # Only meaningful for single-click left-clicks; right-click and
+            # double-click semantics aren't captured by UIA patterns.
+            if (prefer_invoke and button == "left" and clicks == 1
+                    and r.controls):
+                ctrl = r.controls[0]
+                if ctrl is not None and semantic_mod.is_invoke_trusted(ctrl):
+                    invoke_control = ctrl
         else:
-            cx, cy = tk.bounds_at_creation.center
+            live = tk.current_bounds() or tk.bounds_at_creation
+            cx, cy = live.center
             target_x, target_y = cx, cy
     else:
         raise ValueError("must provide x+y, or token (with optional target)")
 
-    pyautogui.click(x=target_x, y=target_y, button=button, clicks=int(clicks))
+    # Pre-flight clamp / sanity check. A click computed from a stale token or
+    # a multi-monitor coord bug will land somewhere unexpected. Refuse rather
+    # than fire blind. When the caller passed token + target, the click MUST
+    # land inside the token's current window; that's the whole contract.
+    if tk is not None and target is not None:
+        live = tk.current_bounds()
+        if live is None:
+            return {
+                "ok": False, "error": "window_disappeared",
+                "x": target_x, "y": target_y,
+            }
+        if not live.contains_point(target_x, target_y):
+            return {
+                "ok": False, "error": "click_outside_window",
+                "x": target_x, "y": target_y,
+                "window_bounds": live.to_dict(),
+                "backend": backend,
+                "hint": "target resolved to coords outside the token's current "
+                        "window. Window may have moved or resized since focus. "
+                        "Try focus() then click() again.",
+            }
+    # For raw click(x, y) and click(token) (no target), don't refuse but warn
+    # if obviously off-screen (outside virtual desktop).
+    if invoke_control is None and not _point_on_any_monitor(target_x, target_y):
+        return {
+            "ok": False, "error": "click_off_screen",
+            "x": target_x, "y": target_y,
+            "hint": "coords are outside the virtual desktop (no monitor covers "
+                    "this point).",
+        }
 
-    out: dict[str, Any] = {
-        "ok": True, "x": target_x, "y": target_y, "backend": backend,
-    }
+    # UIA invoke fast path: no mouse motion, no pixel math. The most reliable
+    # click we can deliver. If the pattern call fails, fall through to the
+    # geometric click as a safety net.
+    out: dict[str, Any]
+    invoke_result: Optional[dict] = None
+    if invoke_control is not None:
+        invoke_result = semantic_mod.try_pattern_click(invoke_control)
+        if invoke_result.get("ok"):
+            out = {
+                "ok": True, "x": target_x, "y": target_y,
+                "backend": f"{backend}+invoke",
+                "click_method": "uia_pattern",
+                "pattern": invoke_result["pattern"],
+            }
+        else:
+            log.info("uia_invoke_failed,falling_back_to_mouse: %s", invoke_result)
+            input_mod.click(x=target_x, y=target_y, button=button, clicks=int(clicks))
+            out = {
+                "ok": True, "x": target_x, "y": target_y, "backend": backend,
+                "click_method": "mouse_after_invoke_failed",
+                "invoke_attempt": invoke_result,
+            }
+    else:
+        input_mod.click(x=target_x, y=target_y, button=button, clicks=int(clicks))
+        out = {
+            "ok": True, "x": target_x, "y": target_y, "backend": backend,
+            "click_method": "mouse",
+        }
     if verify and token is not None:
         tk = _resolve_token(token)
         if verify_text:
@@ -574,6 +722,7 @@ def iris_status() -> dict[str, Any]:
         "tesseract_path": str(tess) if tess else None,
         "active_tokens": len(registry.all()),
         "ocr_cache": vision_mod.ocr_cache_stats(),
+        "dpi_mode": _DPI_MODE,
     }
 
 
@@ -581,6 +730,106 @@ def iris_status() -> dict[str, Any]:
 def self_test() -> dict[str, Any]:
     """Spawn the test harness, run a battery of checks, return a structured report."""
     return run_self_test_impl()
+
+
+# ===========================================================================
+#  SYSTEM TOOLS (clipboard, processes, notifications, window state, registry)
+# ===========================================================================
+@mcp.tool()
+def clipboard_get() -> dict[str, Any]:
+    """Read text from the Windows clipboard. Returns {ok, text}."""
+    return system_mod.clipboard_get()
+
+
+@mcp.tool()
+def clipboard_set(text: str) -> dict[str, Any]:
+    """Write text to the Windows clipboard. Replaces existing contents."""
+    return system_mod.clipboard_set(text)
+
+
+@mcp.tool()
+def list_processes(name_contains: str | None = None,
+                   limit: int = 200) -> dict[str, Any]:
+    """List running processes. Filter by case-insensitive name substring."""
+    return system_mod.list_processes(name_contains=name_contains, limit=int(limit))
+
+
+@mcp.tool()
+def find_process(name: str) -> dict[str, Any]:
+    """Find processes by exact (case-insensitive) name. Useful before kill."""
+    return system_mod.find_process(name)
+
+
+@mcp.tool()
+def kill_process(pid: int, force: bool = False) -> dict[str, Any]:
+    """Terminate a process by PID. Requires force=True for safety. Refuses
+    to touch kernel/system PIDs (0, 4) even with force=True."""
+    return system_mod.kill_process(int(pid), force=bool(force))
+
+
+@mcp.tool()
+def notify(title: str, body: str = "",
+           duration_seconds: float = 5.0) -> dict[str, Any]:
+    """Show a Windows toast notification. Requires the `winsdk` package
+    for the modern Toast backend."""
+    return system_mod.notify(title, body, duration_seconds=float(duration_seconds))
+
+
+@mcp.tool()
+def window_minimize(hwnd: int) -> dict[str, Any]:
+    """Minimize a window by hwnd."""
+    return system_mod.window_minimize(int(hwnd))
+
+
+@mcp.tool()
+def window_maximize(hwnd: int) -> dict[str, Any]:
+    """Maximize a window by hwnd."""
+    return system_mod.window_maximize(int(hwnd))
+
+
+@mcp.tool()
+def window_restore(hwnd: int) -> dict[str, Any]:
+    """Restore a window to normal size."""
+    return system_mod.window_restore(int(hwnd))
+
+
+@mcp.tool()
+def window_close(hwnd: int) -> dict[str, Any]:
+    """Politely close a window via WM_CLOSE. App may prompt for save."""
+    return system_mod.window_close(int(hwnd))
+
+
+@mcp.tool()
+def registry_read(hive: str, key_path: str,
+                  value_name: str = "") -> dict[str, Any]:
+    """Read a Windows registry value. hive: HKLM/HKCU/HKCR/HKU/HKCC."""
+    return system_mod.registry_read(hive, key_path, value_name)
+
+
+@mcp.tool()
+def registry_list_values(hive: str, key_path: str) -> dict[str, Any]:
+    """Enumerate all values under a registry key."""
+    return system_mod.registry_list_values(hive, key_path)
+
+
+@mcp.tool()
+def registry_write(hive: str, key_path: str, value_name: str,
+                   value: Any, value_type: str = "REG_SZ",
+                   confirm: bool = False) -> dict[str, Any]:
+    """Write a Windows registry value. Requires confirm=True for safety."""
+    return system_mod.registry_write(
+        hive, key_path, value_name, value,
+        value_type=value_type, confirm=bool(confirm),
+    )
+
+
+@mcp.tool()
+def registry_delete_value(hive: str, key_path: str, value_name: str,
+                          confirm: bool = False) -> dict[str, Any]:
+    """Delete a Windows registry value. Requires confirm=True."""
+    return system_mod.registry_delete_value(
+        hive, key_path, value_name, confirm=bool(confirm),
+    )
 
 
 # ---------------------------------------------------------------------------

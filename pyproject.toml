@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iris-mcp"
+version = "0.1.0"
+description = "High-precision Windows desktop control for AI agents via the Model Context Protocol."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "The Iris MCP authors" },
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "windows",
+    "automation",
+    "ai-agents",
+    "computer-use",
+    "ocr",
+    "uia",
+    "accessibility",
+    "screen-capture",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware :: Mainframes",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "mcp>=1.0.0",
+    "mss>=9.0.0",
+    "pillow>=10.0.0",
+    "pyautogui>=0.9.54",
+    "pywin32>=306; sys_platform == 'win32'",
+    "uiautomation>=2.0.18; sys_platform == 'win32'",
+    "pytesseract>=0.3.10",
+    "pyyaml>=6.0",
+    "psutil>=5.9.0",
+    "platformdirs>=4.0.0",
+]
+
+[project.optional-dependencies]
+# Toast notifications via Windows.UI.Notifications. Optional because the
+# `winsdk` wheel is large and the core MCP works fine without it.
+notifications = ["winsdk>=1.0.0b10; sys_platform == 'win32'"]
+# Dev / test / lint stack.
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/CurlyTailLabs/iris-mcp"
+Documentation = "https://github.com/CurlyTailLabs/iris-mcp/blob/main/README.md"
+Source = "https://github.com/CurlyTailLabs/iris-mcp"
+Issues = "https://github.com/CurlyTailLabs/iris-mcp/issues"
+Changelog = "https://github.com/CurlyTailLabs/iris-mcp/blob/main/CHANGELOG.md"
+
+[project.scripts]
+iris-mcp = "iris.cli:serve"
+iris-mcp-bench = "iris.bench.runner:main"
+iris-mcp-doctor = "iris.doctor:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["iris*"]
+exclude = ["tests*", ".internal*", "archive*"]
+
+[tool.setuptools.package-data]
+iris = ["recipes/*.yaml", "apps.yaml.example"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".internal", "archive", "vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length is handled by formatter
+    "B008",  # function calls in defaults are fine for dataclass field()
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

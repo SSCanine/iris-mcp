@@ -57,6 +57,11 @@ class FindResult:
     # Independent state flags so the caller can self-correct off-screen clicks.
     # See plan 2026-04-27-iris-v2-phase15.
     window_state: Optional[dict] = None
+    # Parallel to `hits`: the live UIAControl (for backend='uia') or None.
+    # Lets click() call control.Invoke() instead of moving the mouse, which
+    # is the most reliable click possible (no pixels, no animation timing).
+    # Not serialized via to_dict() because COM objects aren't JSON-safe.
+    controls: list[Optional[object]] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict:
         d = {
@@ -85,15 +90,36 @@ def _capture_window(token: FocusToken) -> Optional[object]:
 
     Uses Win32 PrintWindow so the capture is the actual window contents even
     when the window is occluded by other windows. Falls back to bounds-based
-    capture if PrintWindow fails (e.g. for hardware-accelerated apps).
+    capture (using LIVE bounds, never bounds_at_creation) if PrintWindow fails.
     """
     try:
         return vision_mod.capture_window(token.hwnd)
     except Exception:
+        live = token.current_bounds()
+        if live is None:
+            return None
         try:
-            return vision_mod.capture(bounds=token.bounds_at_creation)
+            return vision_mod.capture(bounds=live)
         except Exception:
             return None
+
+
+def _ocr_origin(token: FocusToken) -> tuple[int, int]:
+    """Screen-absolute origin to add to OCR window-local coords.
+
+    PrintWindow + GetWindowRect both work in WINDOW coords (top-left includes
+    title bar). The captured image's (0, 0) corresponds to GetWindowRect's
+    (left, top). We pull that NOW, not from token.bounds_at_creation, so a
+    user-dragged window still maps OCR hits to the right screen pixels.
+
+    Falls back to bounds_at_creation if the window is dead (we'll still return
+    SOMETHING rather than 0,0, but the caller should already have bailed on a
+    dead token via revalidate()).
+    """
+    live = token.current_bounds()
+    if live is not None:
+        return live.x, live.y
+    return token.bounds_at_creation.x, token.bounds_at_creation.y
 
 
 def find(
@@ -130,6 +156,10 @@ def find(
                 result.found = True
                 result.backend = "uia"
                 result.hits = [c.to_dict() for c in controls]
+                # Keep the live UIAControl alongside each hit so click() can
+                # call Invoke() instead of moving the mouse. Pixel-free clicks
+                # are immune to coord/DPI/occlusion bugs.
+                result.controls = list(controls)
                 result.elapsed_ms = (time.perf_counter() - t0) * 1000
                 return result
 
@@ -160,18 +190,47 @@ def find(
             except Exception as e:
                 result.notes.append(f"occlusion_retry_failed:{e}")
         if matches:
-            # Translate window-local bbox to screen-absolute by adding window origin
-            origin_x = token.bounds_at_creation.x
-            origin_y = token.bounds_at_creation.y
-            hits = []
+            # Translate window-local bbox to screen-absolute using LIVE bounds,
+            # not bounds_at_creation. If the user moves the window between focus
+            # and find, the creation snapshot is wrong by exactly the drag delta.
+            origin_x, origin_y = _ocr_origin(token)
+            hits: list[dict] = []
+            ctrls: list[Optional[object]] = []
+            try_uia_upgrade = (
+                semantic_mod.HAS_UIA
+                and semantic_mod.supports_uia(token.hwnd, token.pid)
+            )
             for m in matches:
                 d = m.to_dict()
                 d["bbox"]["x"] += origin_x
                 d["bbox"]["y"] += origin_y
+                # Widget-not-text upgrade: ask UIA what control sits under the
+                # OCR hit's screen center. If we find an invokable ancestor,
+                # swap the OCR text bbox for the widget bbox and remember the
+                # control so click() can Invoke() instead of moving the mouse.
+                widget = None
+                if try_uia_upgrade:
+                    bbox = d["bbox"]
+                    cx = bbox["x"] + bbox["width"] // 2
+                    cy = bbox["y"] + bbox["height"] // 2
+                    try:
+                        leaf = semantic_mod.control_from_point(cx, cy)
+                        if leaf is not None:
+                            widget = semantic_mod.find_clickable_ancestor(leaf)
+                    except Exception:
+                        widget = None
+                if widget is not None:
+                    d["widget_bbox"] = widget.bounds.to_dict()
+                    d["bbox"] = widget.bounds.to_dict()
+                    d["widget_role"] = widget.role
+                    d["widget_name"] = widget.name
+                    d["upgraded_to_uia"] = True
                 hits.append(d)
+                ctrls.append(widget)
             result.found = True
             result.backend = "ocr"
             result.hits = hits
+            result.controls = ctrls
             result.elapsed_ms = (time.perf_counter() - t0) * 1000
             return result
         # Capture nearest matches at lower threshold for the handoff. Re-rank
@@ -180,8 +239,7 @@ def find(
         # ranking purely by edit-distance.
         soft = vision_mod.find_text_in_image(words, target, fuzzy=True, threshold=0.4)
         if soft:
-            origin_x = token.bounds_at_creation.x
-            origin_y = token.bounds_at_creation.y
+            origin_x, origin_y = _ocr_origin(token)
             scored = []
             for m in soft:
                 d = m.to_dict()
@@ -240,8 +298,7 @@ def suggest_alternatives(token: FocusToken, target: str, *, top_n: int = 10) -> 
     if img is not None:
         words = vision_mod.cached_ocr(token.id, img)
         soft = vision_mod.find_text_in_image(words, target, fuzzy=True, threshold=0.4)
-        ox = token.bounds_at_creation.x
-        oy = token.bounds_at_creation.y
+        ox, oy = _ocr_origin(token)
         for m in soft:
             d = m.to_dict()
             d["bbox"]["x"] += ox
@@ -252,7 +309,8 @@ def suggest_alternatives(token: FocusToken, target: str, *, top_n: int = 10) -> 
     # Token overlap rewards candidates that share concept words with the
     # target ("Mic/Aux" vs "GoXLR Mic" share 'mic'), which pure edit-distance
     # otherwise ranks poorly because the surrounding characters differ.
-    win_area = max(token.bounds_at_creation.area, 1)
+    live = token.current_bounds()
+    win_area = max((live or token.bounds_at_creation).area, 1)
     for c in candidates:
         b = c.get("bbox") or {}
         area = max(int(b.get("width", 0)) * int(b.get("height", 0)), 0)

@@ -403,3 +403,21 @@ def get_foreground_window_info() -> Optional[WindowInfo]:
     if not h:
         return None
     return _make_window_info(h)
+
+
+def current_bounds(hwnd: int) -> Optional[Rect]:
+    """Cheap, allocation-light read of a window's CURRENT screen-absolute bounds.
+
+    Skips the WindowInfo wrapper (no exe-name lookup, no title read) because
+    hot-path callers (resolver OCR translation, click() clamp check) only need
+    the rect. Returns None for dead hwnds.
+    """
+    if not HAS_WIN32 or not win32gui.IsWindow(hwnd):
+        return None
+    try:
+        l, t, r, b = win32gui.GetWindowRect(hwnd)
+    except Exception:
+        return None
+    if l == -32000 and t == -32000:
+        return None
+    return Rect.from_ltrb(l, t, r, b)
