@@ -9,18 +9,17 @@ Setups are passed the live hwnd and the bench context. They return either
 None (success) or a string explaining why they couldn't run (then runner
 skips that scenario).
 """
+
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from iris import spatial as spatial_mod
-from iris.geometry import Rect
-
 
 # Setup signature: (hwnd, ctx) -> Optional[str]
-SetupFn = Callable[[int, dict], Optional[str]]
+SetupFn = Callable[[int, dict], str | None]
 
 
 @dataclass
@@ -36,11 +35,11 @@ class Scenario:
 # ---------------------------------------------------------------------------
 # Window manipulation helpers (no pyautogui, direct Win32)
 # ---------------------------------------------------------------------------
-def _move(hwnd: int, x: int, y: int, w: Optional[int] = None,
-          h: Optional[int] = None) -> None:
+def _move(hwnd: int, x: int, y: int, w: int | None = None, h: int | None = None) -> None:
     """Move/resize a window. Width/height defaulted to current if not given."""
-    import win32gui
     import win32con
+    import win32gui
+
     if w is None or h is None:
         cur = spatial_mod.current_bounds(hwnd)
         if cur is None:
@@ -48,7 +47,12 @@ def _move(hwnd: int, x: int, y: int, w: Optional[int] = None,
         w = w if w is not None else cur.width
         h = h if h is not None else cur.height
     win32gui.SetWindowPos(
-        hwnd, 0, int(x), int(y), int(w), int(h),
+        hwnd,
+        0,
+        int(x),
+        int(y),
+        int(w),
+        int(h),
         win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE | win32con.SWP_SHOWWINDOW,
     )
     time.sleep(0.25)
@@ -64,12 +68,12 @@ def _resize(hwnd: int, w: int, h: int) -> None:
 # ---------------------------------------------------------------------------
 # Setups
 # ---------------------------------------------------------------------------
-def _setup_static(hwnd: int, ctx: dict) -> Optional[str]:
+def _setup_static(hwnd: int, ctx: dict) -> str | None:
     """No-op. Window stays where it was placed."""
     return None
 
 
-def _setup_drag(hwnd: int, ctx: dict) -> Optional[str]:
+def _setup_drag(hwnd: int, ctx: dict) -> str | None:
     """Move the window 400px right + 250px down so old bounds are obviously stale."""
     cur = spatial_mod.current_bounds(hwnd)
     if cur is None:
@@ -78,7 +82,7 @@ def _setup_drag(hwnd: int, ctx: dict) -> Optional[str]:
     return None
 
 
-def _setup_resize(hwnd: int, ctx: dict) -> Optional[str]:
+def _setup_resize(hwnd: int, ctx: dict) -> str | None:
     """Shrink the window to 700x500. Forces button layout to reflow."""
     cur = spatial_mod.current_bounds(hwnd)
     if cur is None:
@@ -87,7 +91,7 @@ def _setup_resize(hwnd: int, ctx: dict) -> Optional[str]:
     return None
 
 
-def _setup_park_each_monitor(hwnd: int, ctx: dict) -> Optional[str]:
+def _setup_park_each_monitor(hwnd: int, ctx: dict) -> str | None:
     """Park the harness on the monitor identified by ctx['monitor_index']."""
     idx = ctx.get("monitor_index", 0)
     monitors = spatial_mod.list_monitors()
@@ -102,7 +106,7 @@ def _setup_park_each_monitor(hwnd: int, ctx: dict) -> Optional[str]:
     return None
 
 
-def _setup_occluded_then_raise(hwnd: int, ctx: dict) -> Optional[str]:
+def _setup_occluded_then_raise(hwnd: int, ctx: dict) -> str | None:
     """Spawn a covering window and let bring_to_front rescue our harness.
 
     This exercises occlusion-retry + the printwindow capture path.
@@ -121,16 +125,29 @@ def _setup_occluded_then_raise(hwnd: int, ctx: dict) -> Optional[str]:
 # Scenario library
 # ---------------------------------------------------------------------------
 ALL_TARGET_IDS = [
-    "medium_center", "tiny_btn", "short_label", "wide_row", "icon_label",
-    "huge_btn", "edge_right", "ambiguous_a", "ambiguous_b", "lowercase_only",
+    "medium_center",
+    "tiny_btn",
+    "short_label",
+    "wide_row",
+    "icon_label",
+    "huge_btn",
+    "edge_right",
+    "ambiguous_a",
+    "ambiguous_b",
+    "lowercase_only",
 ]
 
 # Targets that mainly stress the bounds/coord path. We exclude the ambiguous
 # pair AND short_label so the accuracy signal from window mutations isn't
 # drowned in OCR-on-2-letters jitter.
 COORD_TARGETS = [
-    "medium_center", "tiny_btn", "wide_row", "icon_label", "huge_btn",
-    "edge_right", "lowercase_only",
+    "medium_center",
+    "tiny_btn",
+    "wide_row",
+    "icon_label",
+    "huge_btn",
+    "edge_right",
+    "lowercase_only",
 ]
 
 
@@ -169,7 +186,7 @@ SCENARIOS: list[Scenario] = [
 ]
 
 
-def scenario_by_id(scenario_id: str) -> Optional[Scenario]:
+def scenario_by_id(scenario_id: str) -> Scenario | None:
     for s in SCENARIOS:
         if s.id == scenario_id:
             return s

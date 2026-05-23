@@ -1,10 +1,17 @@
-from iris.spatial import match_window, WindowInfo
 from iris.geometry import Rect
+from iris.spatial import WindowInfo, match_window
 
 
 def _w(hwnd, pid, exe, title):
-    return WindowInfo(hwnd=hwnd, pid=pid, exe_name=exe, title=title,
-                      bounds=Rect(0, 0, 100, 100), visible=True, minimized=False)
+    return WindowInfo(
+        hwnd=hwnd,
+        pid=pid,
+        exe_name=exe,
+        title=title,
+        bounds=Rect(0, 0, 100, 100),
+        visible=True,
+        minimized=False,
+    )
 
 
 CANDIDATES = [

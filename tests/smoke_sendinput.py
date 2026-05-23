@@ -11,6 +11,7 @@ We do NOT need a real app to be hit, because we're testing the input pipeline
 itself, not whether the click did something. Coord alignment is tested
 elsewhere (smoke_coord_alignment.py).
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -55,7 +56,7 @@ def main() -> int:
     cx, cy = input_mod.position()
     print(f"after move: ({cx}, {cy})")
     if abs(cx - target_x) > 1 or abs(cy - target_y) > 1:
-        print(f"FAIL: cursor did not reach target. delta=({cx-target_x},{cy-target_y})")
+        print(f"FAIL: cursor did not reach target. delta=({cx - target_x},{cy - target_y})")
         # restore cursor and bail
         input_mod.move(start_x, start_y)
         return 1

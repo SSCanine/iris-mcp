@@ -4,6 +4,7 @@ Runs `alt_tab_to` against an arbitrary current window to prove the engine
 chains primitives correctly, returns context to caller, and the YAML
 substitution actually works in production.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,14 +14,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from iris import recipes as recipes_mod
-from iris import spatial as spatial_mod
-from iris import semantic as semantic_mod
-from iris import vision as vision_mod
-from iris.tokens import FocusToken, default_registry
-from iris import resolver as resolver_mod
 from iris import fingerprint as fingerprint_mod
-
+from iris import recipes as recipes_mod
+from iris import semantic as semantic_mod
+from iris import spatial as spatial_mod
+from iris.tokens import FocusToken, default_registry
 
 registry = default_registry()
 
@@ -45,8 +43,12 @@ def focus(match: dict, raise_window: bool = False) -> dict:
         except Exception:
             fp = None
     tk = FocusToken.create(
-        hwnd=w.hwnd, pid=w.pid, exe_name=w.exe_name,
-        title=w.title, monitor_index=monitor, bounds=w.bounds,
+        hwnd=w.hwnd,
+        pid=w.pid,
+        exe_name=w.exe_name,
+        title=w.title,
+        monitor_index=monitor,
+        bounds=w.bounds,
         fingerprint=fp,
     )
     registry.store(tk)
@@ -95,12 +97,17 @@ def main() -> int:
     if initial is not None and initial.hwnd != target.hwnd:
         spatial_mod.bring_to_front(initial.hwnd)
 
-    print(json.dumps({
-        "recipe_ok": result.get("ok"),
-        "foreground_changed_to_target": is_target,
-        "initial_title": initial.title[:40] if initial else None,
-        "final_title": after.title[:40] if after else None,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "recipe_ok": result.get("ok"),
+                "foreground_changed_to_target": is_target,
+                "initial_title": initial.title[:40] if initial else None,
+                "final_title": after.title[:40] if after else None,
+            },
+            indent=2,
+        )
+    )
 
     return 0 if (result.get("ok") and is_target) else 1
 

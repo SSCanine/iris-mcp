@@ -4,10 +4,8 @@ Tests substitution, registry, error paths. Does NOT touch real Windows.
 For end-to-end recipe execution against real apps, see
 tests/smoke_recipes.py.
 """
-from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import patch
+from __future__ import annotations
 
 import pytest
 
@@ -27,6 +25,7 @@ def clean_registry():
 def test_register_and_list():
     def noop(**kwargs):
         return {"ok": True}
+
     recipes_mod.register_action("noop", noop)
     assert "noop" in recipes_mod.registered_actions()
 
@@ -124,12 +123,7 @@ def test_run_recipe_passes_input_args(tmp_path, monkeypatch):
     recipes_mod.register_action("act", action)
     recipe = tmp_path / "in.yaml"
     recipe.write_text(
-        "name: in\n"
-        "inputs: [url]\n"
-        "steps:\n"
-        "  - action: act\n"
-        "    args:\n"
-        "      url: ${input.url}\n",
+        "name: in\ninputs: [url]\nsteps:\n  - action: act\n    args:\n      url: ${input.url}\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(recipes_mod, "RECIPES_DIR", tmp_path)
@@ -141,6 +135,7 @@ def test_run_recipe_passes_input_args(tmp_path, monkeypatch):
 def test_run_recipe_step_raises_is_captured(tmp_path, monkeypatch):
     def raiser(**kwargs):
         raise RuntimeError("disk full")
+
     recipes_mod.register_action("raiser", raiser)
     recipe = tmp_path / "r.yaml"
     recipe.write_text(

@@ -1,6 +1,7 @@
 import pytest
 from PIL import Image, ImageDraw, ImageFont
-from iris.vision import ocr_text, find_text_in_image, _TESSERACT_OK
+
+from iris.vision import _TESSERACT_OK, find_text_in_image, ocr_text
 
 pytestmark = pytest.mark.skipif(not _TESSERACT_OK, reason="Tesseract not available")
 
@@ -10,7 +11,7 @@ def _render_text(text: str, size=(400, 100)) -> Image.Image:
     draw = ImageDraw.Draw(img)
     try:
         font = ImageFont.truetype("arial.ttf", 32)
-    except (OSError, IOError):
+    except OSError:
         font = ImageFont.load_default()
     draw.text((20, 30), text, fill=(0, 0, 0), font=font)
     return img

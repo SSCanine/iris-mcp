@@ -15,6 +15,7 @@ What we check:
   3. Move the window by a known delta.
   4. Find "Click Me" again. The hit bbox must translate by the same delta.
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -35,13 +36,14 @@ def main() -> int:
         except Exception:
             ctypes.windll.user32.SetProcessDPIAware()
 
-    import win32gui
     import win32con
-    from iris import spatial as spatial_mod
+    import win32gui
+
     from iris import resolver as resolver_mod
+    from iris import spatial as spatial_mod
     from iris import vision as vision_mod
-    from iris.tokens import FocusToken
     from iris.geometry import Rect
+    from iris.tokens import FocusToken
 
     # Spawn the Tkinter harness at a known position.
     harness = Path(__file__).resolve().parent / "fixtures" / "iris_test_harness.py"
@@ -70,8 +72,12 @@ def main() -> int:
         print(f"creation bounds: {bounds_at_creation.to_dict()}")
 
         tk_token = FocusToken.create(
-            hwnd=hwnd, pid=proc.pid, exe_name="python.exe",
-            title="IRIS_TEST_HARNESS", monitor_index=0, bounds=bounds_at_creation,
+            hwnd=hwnd,
+            pid=proc.pid,
+            exe_name="python.exe",
+            title="IRIS_TEST_HARNESS",
+            monitor_index=0,
+            bounds=bounds_at_creation,
         )
 
         # Find "Click Me" pre-move. Should hit via OCR (Tk doesn't expose UIA).
@@ -86,14 +92,17 @@ def main() -> int:
         print(f"pre-move hit: backend={r1.backend} center=({pre_cx},{pre_cy})")
 
         if r1.backend != "ocr":
-            print(f"NOTE: expected OCR backend, got {r1.backend}. Test still valid "
-                  f"if bounds tracking is consistent, but does not exercise the "
-                  f"OCR coord translation fix specifically.")
+            print(
+                f"NOTE: expected OCR backend, got {r1.backend}. Test still valid "
+                f"if bounds tracking is consistent, but does not exercise the "
+                f"OCR coord translation fix specifically."
+            )
 
         # Move the window by a known delta.
         delta_x, delta_y = 400, 250
         win32gui.SetWindowPos(
-            hwnd, 0,
+            hwnd,
+            0,
             bounds_at_creation.x + delta_x,
             bounds_at_creation.y + delta_y,
             bounds_at_creation.width,
@@ -111,6 +120,7 @@ def main() -> int:
         # as UIA-supporting (it isn't, but cache).
         try:
             from iris.semantic import reset_uia_support_cache
+
             reset_uia_support_cache()
         except Exception:
             pass
@@ -139,11 +149,12 @@ def main() -> int:
 
         # Sanity: post hit must land inside the new window.
         if not new_bounds.contains_point(post_cx, post_cy):
-            print(f"FAIL: post-move hit center NOT inside new window")
+            print("FAIL: post-move hit center NOT inside new window")
             return 1
 
-        print("PASS: resolver tracked the window move, hit bbox translates by the "
-              "exact drag delta.")
+        print(
+            "PASS: resolver tracked the window move, hit bbox translates by the exact drag delta."
+        )
         return 0
     finally:
         try:

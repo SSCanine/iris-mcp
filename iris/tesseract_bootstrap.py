@@ -1,5 +1,7 @@
 """Locate Tesseract binary: bundled vendor/ first, then PATH, then well-known install dirs."""
+
 from __future__ import annotations
+
 import os
 import shutil
 from pathlib import Path

@@ -1,25 +1,40 @@
 """Resolver: route find/click requests to the right backend (UIA -> OCR -> handoff)."""
+
 from __future__ import annotations
+
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
-from iris.geometry import Rect
-from iris.tokens import FocusToken, inspect as token_inspect
-from iris import spatial as spatial_mod
 from iris import semantic as semantic_mod
+from iris import spatial as spatial_mod
 from iris import vision as vision_mod
-
+from iris.tokens import FocusToken
+from iris.tokens import inspect as token_inspect
 
 # Token-overlap ranking helpers. Used to surface candidates that share
 # concept words with the target even when raw edit-distance is low. Example:
 # target='Mic/Aux' vs candidate='GoXLR Mic' shares 'mic' -> meaningful boost.
 _TOKEN_SPLIT_RE = re.compile(r"[\s/\-_.,;:|\\()\[\]]+")
-_STOPWORDS = frozenset({
-    "the", "and", "for", "with", "from", "this", "that",
-    "you", "your", "are", "was", "but", "not", "any", "all",
-})
+_STOPWORDS = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "this",
+        "that",
+        "you",
+        "your",
+        "are",
+        "was",
+        "but",
+        "not",
+        "any",
+        "all",
+    }
+)
 
 
 def _tokenize(s: str) -> set[str]:
@@ -44,24 +59,24 @@ def _token_overlap(target: str, candidate: str) -> float:
 @dataclass
 class FindResult:
     found: bool
-    backend: str               # 'uia' | 'ocr' | 'vision_handoff'
+    backend: str  # 'uia' | 'ocr' | 'vision_handoff'
     hits: list[dict] = field(default_factory=list)
     nearest_matches: list[dict] = field(default_factory=list)
-    screenshot: Optional[bytes] = None
-    screenshot_dims: Optional[tuple[int, int]] = None
+    screenshot: bytes | None = None
+    screenshot_dims: tuple[int, int] | None = None
     backends_tried: list[str] = field(default_factory=list)
     elapsed_ms: float = 0.0
     notes: list[str] = field(default_factory=list)
     drift_detected: bool = False
-    drift_summary: Optional[dict] = None
+    drift_summary: dict | None = None
     # Independent state flags so the caller can self-correct off-screen clicks.
     # See plan 2026-04-27-iris-v2-phase15.
-    window_state: Optional[dict] = None
+    window_state: dict | None = None
     # Parallel to `hits`: the live UIAControl (for backend='uia') or None.
     # Lets click() call control.Invoke() instead of moving the mouse, which
     # is the most reliable click possible (no pixels, no animation timing).
     # Not serialized via to_dict() because COM objects aren't JSON-safe.
-    controls: list[Optional[object]] = field(default_factory=list, repr=False)
+    controls: list[object | None] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict:
         d = {
@@ -85,7 +100,7 @@ class FindResult:
         return d
 
 
-def _capture_window(token: FocusToken) -> Optional[object]:
+def _capture_window(token: FocusToken) -> object | None:
     """Capture only the token's window. Returns PIL Image or None.
 
     Uses Win32 PrintWindow so the capture is the actual window contents even
@@ -177,13 +192,17 @@ def find(
                     occlusion_retried = True
                     spatial_mod.bring_to_front(token.hwnd)
                     import time as _t
+
                     _t.sleep(0.2)
                     vision_mod.clear_ocr_cache(token.id)
                     img = _capture_window(token)
                     if img is not None:
                         words = vision_mod.cached_ocr(token.id, img)
                         matches = vision_mod.find_text_in_image(
-                            words, target, fuzzy=fuzzy, threshold=threshold,
+                            words,
+                            target,
+                            fuzzy=fuzzy,
+                            threshold=threshold,
                         )
                         if occlusion_retried:
                             result.notes.append("occlusion_retry: window raised, OCR re-run")
@@ -195,10 +214,9 @@ def find(
             # and find, the creation snapshot is wrong by exactly the drag delta.
             origin_x, origin_y = _ocr_origin(token)
             hits: list[dict] = []
-            ctrls: list[Optional[object]] = []
-            try_uia_upgrade = (
-                semantic_mod.HAS_UIA
-                and semantic_mod.supports_uia(token.hwnd, token.pid)
+            ctrls: list[object | None] = []
+            try_uia_upgrade = semantic_mod.HAS_UIA and semantic_mod.supports_uia(
+                token.hwnd, token.pid
             )
             for m in matches:
                 d = m.to_dict()
@@ -280,19 +298,22 @@ def suggest_alternatives(token: FocusToken, target: str, *, top_n: int = 10) -> 
         dump = semantic_mod.walk_tree(token.hwnd, max_depth=6, max_nodes=200)
         target_l = target.lower()
         import difflib
+
         for node in dump:
             name = node.get("name", "")
             if not name:
                 continue
             sim = difflib.SequenceMatcher(None, name.lower(), target_l).ratio()
             if sim >= 0.4:
-                candidates.append({
-                    "text": name,
-                    "role": node.get("role"),
-                    "bbox": node.get("bounds"),
-                    "similarity": round(sim, 3),
-                    "backend": "uia",
-                })
+                candidates.append(
+                    {
+                        "text": name,
+                        "role": node.get("role"),
+                        "bbox": node.get("bounds"),
+                        "similarity": round(sim, 3),
+                        "backend": "uia",
+                    }
+                )
     # OCR
     img = _capture_window(token)
     if img is not None:
@@ -318,7 +339,8 @@ def suggest_alternatives(token: FocusToken, target: str, *, top_n: int = 10) -> 
         overlap = _token_overlap(target, c.get("text", ""))
         c["token_overlap"] = round(overlap, 3)
         c["score"] = round(
-            c["similarity"] * 0.55 + prominence * 0.20 + overlap * 0.25, 3,
+            c["similarity"] * 0.55 + prominence * 0.20 + overlap * 0.25,
+            3,
         )
     candidates.sort(key=lambda c: c["score"], reverse=True)
     return {

@@ -1,12 +1,12 @@
 """Vision layer: capture + OCR + fuzzy text matching + perceptual hash cache."""
+
 from __future__ import annotations
+
 import difflib
 import hashlib
 import io
 import math
-import time
 from dataclasses import dataclass
-from typing import Optional
 
 from PIL import Image, ImageOps
 
@@ -15,20 +15,24 @@ from iris.tesseract_bootstrap import configure_tesseract
 
 try:
     import mss
+
     HAS_MSS = True
 except ImportError:
     HAS_MSS = False
 
 try:
     import pytesseract
+
     HAS_TESSERACT_LIB = True
 except ImportError:
     HAS_TESSERACT_LIB = False
 
 try:
     import ctypes
+
     import win32gui
     import win32ui
+
     HAS_PRINTWINDOW = True
 except ImportError:
     HAS_PRINTWINDOW = False
@@ -56,7 +60,7 @@ def _get_sct():
     return _sct
 
 
-def capture(bounds: Optional[Rect] = None, monitor: int = 0) -> Image.Image:
+def capture(bounds: Rect | None = None, monitor: int = 0) -> Image.Image:
     """Capture pixels.
 
     If bounds given: capture exactly that screen-absolute region.
@@ -97,6 +101,7 @@ def capture_window(hwnd: int) -> Image.Image:
     if not HAS_PRINTWINDOW:
         # Fall back to bounds-based capture
         from iris import spatial as _spatial
+
         info = _spatial._make_window_info(hwnd)
         if info is None:
             raise RuntimeError(f"invalid hwnd {hwnd}")
@@ -126,9 +131,7 @@ def capture_window(hwnd: int) -> Image.Image:
 
         # PrintWindow with PW_RENDERFULLCONTENT (modern composited content).
         # Returns 1 on success, 0 on failure.
-        result = ctypes.windll.user32.PrintWindow(
-            hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT
-        )
+        result = ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), PW_RENDERFULLCONTENT)
         if not result:
             # Try plain PrintWindow as a fallback.
             result = ctypes.windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 0)
@@ -142,13 +145,18 @@ def capture_window(hwnd: int) -> Image.Image:
         img = Image.frombuffer(
             "RGB",
             (bmp_info["bmWidth"], bmp_info["bmHeight"]),
-            bmp_str, "raw", "BGRX", 0, 1,
+            bmp_str,
+            "raw",
+            "BGRX",
+            0,
+            1,
         )
 
         # Some hardware-accelerated apps (e.g. games, video players) return an
         # all-black bitmap. Detect this and fall back to screen capture.
         if _bitmap_is_black(img):
             from iris import spatial as _spatial
+
             info = _spatial._make_window_info(hwnd)
             if info is not None:
                 return capture(bounds=info.bounds)
@@ -199,7 +207,9 @@ def optimal_scale(w: int, h: int) -> float:
     return min(1.0, long_scale, pixel_scale)
 
 
-def encode_jpeg(img: Image.Image, quality: int = 60, optimize_tokens: bool = True) -> tuple[bytes, int, int]:
+def encode_jpeg(
+    img: Image.Image, quality: int = 60, optimize_tokens: bool = True
+) -> tuple[bytes, int, int]:
     w, h = img.width, img.height
     if optimize_tokens:
         s = optimal_scale(w, h)
@@ -221,11 +231,15 @@ def encode_jpeg(img: Image.Image, quality: int = 60, optimize_tokens: bool = Tru
 @dataclass(frozen=True)
 class OCRWord:
     text: str
-    bbox: Rect          # window-local coords (caller translates to screen-absolute if needed)
+    bbox: Rect  # window-local coords (caller translates to screen-absolute if needed)
     confidence: float
 
     def to_dict(self) -> dict:
-        return {"text": self.text, "bbox": self.bbox.to_dict(), "confidence": round(self.confidence, 2)}
+        return {
+            "text": self.text,
+            "bbox": self.bbox.to_dict(),
+            "confidence": round(self.confidence, 2),
+        }
 
 
 def _preprocess_for_ocr(img: Image.Image) -> Image.Image:
@@ -233,7 +247,9 @@ def _preprocess_for_ocr(img: Image.Image) -> Image.Image:
     gray = img.convert("L")
     enhanced = ImageOps.autocontrast(gray, cutoff=2)
     if enhanced.height < 400:
-        enhanced = enhanced.resize((enhanced.width * 2, enhanced.height * 2), Image.Resampling.LANCZOS)
+        enhanced = enhanced.resize(
+            (enhanced.width * 2, enhanced.height * 2), Image.Resampling.LANCZOS
+        )
     return enhanced
 
 
@@ -312,9 +328,14 @@ def _similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def find_text_in_image(words: list[OCRWord], query: str, *,
-                       fuzzy: bool = True, threshold: float = 0.6,
-                       max_ngram: int = 4) -> list[TextMatch]:
+def find_text_in_image(
+    words: list[OCRWord],
+    query: str,
+    *,
+    fuzzy: bool = True,
+    threshold: float = 0.6,
+    max_ngram: int = 4,
+) -> list[TextMatch]:
     """Search OCR words for query. Tries single words plus n-gram joins.
 
     Returns matches sorted by similarity descending.
@@ -335,7 +356,7 @@ def find_text_in_image(words: list[OCRWord], query: str, *,
         max_n = min(max_ngram, len(q.split()) + 1, len(words))
         for n in range(2, max_n + 1):
             for i in range(len(words) - n + 1):
-                window = words[i:i + n]
+                window = words[i : i + n]
                 joined = " ".join(w.text for w in window)
                 sim = _similarity(joined, q)
                 if not fuzzy and sim < 1.0:
@@ -347,10 +368,14 @@ def find_text_in_image(words: list[OCRWord], query: str, *,
                     r = max(w.bbox.right for w in window)
                     b = max(w.bbox.bottom for w in window)
                     avg_conf = sum(w.confidence for w in window) / n
-                    out.append(TextMatch(
-                        text=joined, bbox=Rect.from_ltrb(x, y, r, b),
-                        similarity=sim, confidence=avg_conf,
-                    ))
+                    out.append(
+                        TextMatch(
+                            text=joined,
+                            bbox=Rect.from_ltrb(x, y, r, b),
+                            similarity=sim,
+                            confidence=avg_conf,
+                        )
+                    )
     out.sort(key=lambda m: m.similarity, reverse=True)
     return out
 
@@ -397,7 +422,7 @@ def ocr_cache_stats() -> dict:
     }
 
 
-def clear_ocr_cache(token_id: Optional[str] = None) -> None:
+def clear_ocr_cache(token_id: str | None = None) -> None:
     if token_id is None:
         _OCR_CACHE.clear()
     else:

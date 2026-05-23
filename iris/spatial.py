@@ -2,31 +2,34 @@
 
 Pure spatial reasoning. No pixels, no UIA. Just where windows live.
 """
+
 from __future__ import annotations
-import os
+
 import re
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 from iris.geometry import Rect
 
 try:
+    import win32con
     import win32gui
     import win32process
-    import win32con
+
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
 
 try:
     import mss
+
     HAS_MSS = True
 except ImportError:
     HAS_MSS = False
@@ -78,7 +81,7 @@ def _exe_for_pid(pid: int) -> str:
     return name
 
 
-def _make_window_info(hwnd: int) -> Optional[WindowInfo]:
+def _make_window_info(hwnd: int) -> WindowInfo | None:
     if not HAS_WIN32 or not win32gui.IsWindow(hwnd):
         return None
     title = win32gui.GetWindowText(hwnd) or ""
@@ -87,7 +90,7 @@ def _make_window_info(hwnd: int) -> Optional[WindowInfo]:
         l, t, r, b = win32gui.GetWindowRect(hwnd)
     except Exception:
         return None
-    minimized = (l == -32000 and t == -32000)
+    minimized = l == -32000 and t == -32000
     bounds = Rect.from_ltrb(l, t, r, b)
     try:
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
@@ -95,8 +98,13 @@ def _make_window_info(hwnd: int) -> Optional[WindowInfo]:
         pid = 0
     exe = _exe_for_pid(pid) if pid else ""
     return WindowInfo(
-        hwnd=hwnd, pid=pid, exe_name=exe, title=title,
-        bounds=bounds, visible=visible, minimized=minimized,
+        hwnd=hwnd,
+        pid=pid,
+        exe_name=exe,
+        title=title,
+        bounds=bounds,
+        visible=visible,
+        minimized=minimized,
     )
 
 
@@ -123,7 +131,7 @@ def enumerate_windows(visible_only: bool = True, titled_only: bool = True) -> li
 # ---------------------------------------------------------------------------
 # match_window
 # ---------------------------------------------------------------------------
-def match_window(spec: dict, candidates: Optional[list[WindowInfo]] = None) -> list[WindowInfo]:
+def match_window(spec: dict, candidates: list[WindowInfo] | None = None) -> list[WindowInfo]:
     """Match windows by spec dict.
 
     spec keys (any combination):
@@ -181,7 +189,7 @@ def list_monitors(force_refresh: bool = False) -> list[Rect]:
     return rects
 
 
-def get_monitor_for_window(hwnd_or_bounds, monitors: Optional[list[Rect]] = None) -> int:
+def get_monitor_for_window(hwnd_or_bounds, monitors: list[Rect] | None = None) -> int:
     """Largest-area-overlap algorithm. Returns 0-based monitor index, or -1 if no overlap."""
     if monitors is None:
         monitors = list_monitors()
@@ -234,8 +242,9 @@ def is_occluded(hwnd: int) -> bool:
 # ---------------------------------------------------------------------------
 # Popup detection
 # ---------------------------------------------------------------------------
-def find_popups_for(pid: int, since_timestamp: Optional[float] = None,
-                    exclude_hwnd: Optional[int] = None) -> list[WindowInfo]:
+def find_popups_for(
+    pid: int, since_timestamp: float | None = None, exclude_hwnd: int | None = None
+) -> list[WindowInfo]:
     """Top-level windows belonging to pid. Filtering by 'since_timestamp' isn't
     supported by Win32 directly; callers track which hwnds existed before and
     diff. We return all current windows for the pid and let caller diff."""
@@ -313,9 +322,12 @@ def bring_to_front(hwnd: int) -> bool:
                     attached_fg = True
                 except Exception:
                     pass
-            if (cur_thread and target_thread
-                    and target_thread != cur_thread
-                    and target_thread != fg_thread):
+            if (
+                cur_thread
+                and target_thread
+                and target_thread != cur_thread
+                and target_thread != fg_thread
+            ):
                 try:
                     win32process.AttachThreadInput(cur_thread, target_thread, True)
                     attached_target = True
@@ -327,11 +339,21 @@ def bring_to_front(hwnd: int) -> bool:
             #    top of the Z-order without leaving it as always-on-top.
             try:
                 win32gui.SetWindowPos(
-                    hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
+                    hwnd,
+                    win32con.HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
                     win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
                 )
                 win32gui.SetWindowPos(
-                    hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
+                    hwnd,
+                    win32con.HWND_NOTOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
                     win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
                 )
             except Exception:
@@ -367,8 +389,9 @@ def bring_to_front(hwnd: int) -> bool:
         return False
 
 
-def wait_for_window_visible(hwnd: int, timeout_ms: int = 500,
-                            poll_ms: int = 25) -> Optional[WindowInfo]:
+def wait_for_window_visible(
+    hwnd: int, timeout_ms: int = 500, poll_ms: int = 25
+) -> WindowInfo | None:
     """Poll for a window to materialize after a state change (e.g. restore from minimize).
 
     Win32's SetForegroundWindow + ShowWindow are partly async: even after they
@@ -383,7 +406,7 @@ def wait_for_window_visible(hwnd: int, timeout_ms: int = 500,
     if not HAS_WIN32 or not win32gui.IsWindow(hwnd):
         return None
     deadline = time.time() + (timeout_ms / 1000.0)
-    last: Optional[WindowInfo] = None
+    last: WindowInfo | None = None
     while True:
         info = _make_window_info(hwnd)
         if info is None:
@@ -396,7 +419,7 @@ def wait_for_window_visible(hwnd: int, timeout_ms: int = 500,
         time.sleep(poll_ms / 1000.0)
 
 
-def get_foreground_window_info() -> Optional[WindowInfo]:
+def get_foreground_window_info() -> WindowInfo | None:
     if not HAS_WIN32:
         return None
     h = win32gui.GetForegroundWindow()
@@ -405,7 +428,7 @@ def get_foreground_window_info() -> Optional[WindowInfo]:
     return _make_window_info(h)
 
 
-def current_bounds(hwnd: int) -> Optional[Rect]:
+def current_bounds(hwnd: int) -> Rect | None:
     """Cheap, allocation-light read of a window's CURRENT screen-absolute bounds.
 
     Skips the WindowInfo wrapper (no exe-name lookup, no title read) because

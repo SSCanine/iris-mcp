@@ -1,7 +1,11 @@
 import pytest
+
 from iris.spatial import (
-    enumerate_windows, list_monitors, get_monitor_for_window,
-    get_foreground_window_info, HAS_WIN32,
+    HAS_WIN32,
+    enumerate_windows,
+    get_foreground_window_info,
+    get_monitor_for_window,
+    list_monitors,
 )
 
 pytestmark = pytest.mark.skipif(not HAS_WIN32, reason="Win32 only")

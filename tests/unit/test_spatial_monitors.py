@@ -1,11 +1,10 @@
-from iris.spatial import get_monitor_for_window
 from iris.geometry import Rect
-
+from iris.spatial import get_monitor_for_window
 
 MONITORS = [
-    Rect(0, 0, 1920, 1080),         # primary, monitor 0
-    Rect(1920, 0, 2560, 1440),      # secondary right, monitor 1
-    Rect(-1920, 0, 1920, 1080),     # tertiary left, monitor 2
+    Rect(0, 0, 1920, 1080),  # primary, monitor 0
+    Rect(1920, 0, 2560, 1440),  # secondary right, monitor 1
+    Rect(-1920, 0, 1920, 1080),  # tertiary left, monitor 2
 ]
 
 

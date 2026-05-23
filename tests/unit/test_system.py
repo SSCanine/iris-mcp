@@ -8,12 +8,10 @@ These touch live Windows APIs but every test is non-destructive:
   - Registry tests read HKCU keys that always exist; the write/delete path
     is exercised against a sandbox key under HKCU\\Software\\IrisMCPTest.
 """
+
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
-import time
 
 import pytest
 
@@ -121,8 +119,10 @@ class TestProcesses:
 def test_window_state_invalid_hwnd_returns_diagnostic():
     # hwnd 0 is never valid.
     for fn in (
-        system_mod.window_minimize, system_mod.window_maximize,
-        system_mod.window_restore, system_mod.window_close,
+        system_mod.window_minimize,
+        system_mod.window_maximize,
+        system_mod.window_restore,
+        system_mod.window_close,
     ):
         r = fn(0)
         assert r["ok"] is False
@@ -148,22 +148,31 @@ class TestRegistry:
 
     def test_read_missing_key(self):
         r = system_mod.registry_read(
-            "HKCU", "Software\\IrisMCPTest_DefinitelyDoesNotExist_xyz", "x",
+            "HKCU",
+            "Software\\IrisMCPTest_DefinitelyDoesNotExist_xyz",
+            "x",
         )
         assert r["ok"] is False
         assert r["reason"] == "key_or_value_not_found"
 
     def test_write_without_confirm_refused(self):
         r = system_mod.registry_write(
-            "HKCU", "Software\\IrisMCPTest", "v", "x",
-            value_type="REG_SZ", confirm=False,
+            "HKCU",
+            "Software\\IrisMCPTest",
+            "v",
+            "x",
+            value_type="REG_SZ",
+            confirm=False,
         )
         assert r["ok"] is False
         assert r["reason"] == "confirm_required"
 
     def test_delete_without_confirm_refused(self):
         r = system_mod.registry_delete_value(
-            "HKCU", "Software\\IrisMCPTest", "v", confirm=False,
+            "HKCU",
+            "Software\\IrisMCPTest",
+            "v",
+            confirm=False,
         )
         assert r["ok"] is False
         assert r["reason"] == "confirm_required"
@@ -172,8 +181,12 @@ class TestRegistry:
         sandbox = "Software\\IrisMCPTest"
         try:
             w = system_mod.registry_write(
-                "HKCU", sandbox, "iris_unit_test", "hello",
-                value_type="REG_SZ", confirm=True,
+                "HKCU",
+                sandbox,
+                "iris_unit_test",
+                "hello",
+                value_type="REG_SZ",
+                confirm=True,
             )
             assert w["ok"] is True, w
             r = system_mod.registry_read("HKCU", sandbox, "iris_unit_test")
@@ -182,7 +195,10 @@ class TestRegistry:
             assert r["type"] == "REG_SZ"
         finally:
             system_mod.registry_delete_value(
-                "HKCU", sandbox, "iris_unit_test", confirm=True,
+                "HKCU",
+                sandbox,
+                "iris_unit_test",
+                confirm=True,
             )
 
     def test_list_values_under_hkcu_environment(self):

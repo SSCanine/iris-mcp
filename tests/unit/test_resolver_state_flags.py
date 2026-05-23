@@ -1,16 +1,19 @@
 """Tests for FindResult.window_state propagation through resolver.find()."""
-import pytest
 
+from iris import resolver as resolver_mod
 from iris.geometry import Rect
 from iris.resolver import FindResult, find
 from iris.tokens import FocusToken
-from iris import resolver as resolver_mod
 
 
 def _token():
     return FocusToken.create(
-        hwnd=123, pid=1, exe_name="x.exe", title="X",
-        monitor_index=0, bounds=Rect(0, 0, 100, 100),
+        hwnd=123,
+        pid=1,
+        exe_name="x.exe",
+        title="X",
+        monitor_index=0,
+        bounds=Rect(0, 0, 100, 100),
     )
 
 
@@ -19,7 +22,9 @@ def test_findresult_window_state_round_trips_through_to_dict():
     r.window_state = {"minimized": True, "occluded": False, "off_screen": True}
     d = r.to_dict()
     assert d["window_state"] == {
-        "minimized": True, "occluded": False, "off_screen": True,
+        "minimized": True,
+        "occluded": False,
+        "off_screen": True,
     }
 
 
@@ -47,7 +52,9 @@ def test_find_populates_window_state_from_inspect(monkeypatch):
 
     result = find(_token(), "anything")
     assert result.window_state == {
-        "minimized": True, "occluded": False, "off_screen": True,
+        "minimized": True,
+        "occluded": False,
+        "off_screen": True,
     }
 
 
@@ -64,7 +71,9 @@ def test_find_window_state_falsy_when_window_normal(monkeypatch):
 
     result = find(_token(), "anything")
     assert result.window_state == {
-        "minimized": False, "occluded": False, "off_screen": False,
+        "minimized": False,
+        "occluded": False,
+        "off_screen": False,
     }
 
 
@@ -72,7 +81,8 @@ def test_find_handles_dead_token_inspect_gracefully(monkeypatch):
     """If inspect reports the token isn't alive, window_state stays None and
     find still completes without crashing."""
     monkeypatch.setattr(
-        resolver_mod, "token_inspect",
+        resolver_mod,
+        "token_inspect",
         lambda tk: {"alive": False, "reason": "hwnd_dead_no_repair"},
     )
     monkeypatch.setattr(resolver_mod.semantic_mod, "HAS_UIA", False)
@@ -85,8 +95,10 @@ def test_find_handles_dead_token_inspect_gracefully(monkeypatch):
 
 def test_find_recovers_when_inspect_raises(monkeypatch):
     """Defensive: if inspect throws, find still produces a result."""
+
     def boom(tk):
         raise RuntimeError("inspect blew up")
+
     monkeypatch.setattr(resolver_mod, "token_inspect", boom)
     monkeypatch.setattr(resolver_mod.semantic_mod, "HAS_UIA", False)
     monkeypatch.setattr(resolver_mod, "_capture_window", lambda tk: None)

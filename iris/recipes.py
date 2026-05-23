@@ -26,14 +26,17 @@ Server-side wiring:
     MCP tool function. The recipe engine looks up actions by name in that
     registry, so any Iris tool is callable from a recipe with no extra glue.
 """
+
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 try:
     import yaml
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -87,8 +90,10 @@ def _substitute(value: Any, context: dict) -> Any:
         m = _VAR_PATTERN.fullmatch(value.strip())
         if m:
             return _lookup(m.group(1), context)
+
         def repl(m: re.Match) -> str:
             return str(_lookup(m.group(1), context))
+
         return _VAR_PATTERN.sub(repl, value)
     if isinstance(value, dict):
         return {k: _substitute(v, context) for k, v in value.items()}
@@ -105,13 +110,15 @@ def list_recipes() -> list[dict]:
     for p in sorted(RECIPES_DIR.glob("*.yaml")):
         try:
             data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-            out.append({
-                "name": data.get("name") or p.stem,
-                "description": data.get("description", ""),
-                "inputs": data.get("inputs", []),
-                "step_count": len(data.get("steps", [])),
-                "path": str(p),
-            })
+            out.append(
+                {
+                    "name": data.get("name") or p.stem,
+                    "description": data.get("description", ""),
+                    "inputs": data.get("inputs", []),
+                    "step_count": len(data.get("steps", [])),
+                    "path": str(p),
+                }
+            )
         except Exception as e:
             out.append({"name": p.stem, "error": str(e), "path": str(p)})
     return out
@@ -136,7 +143,7 @@ def load_recipe(name: str) -> dict:
     raise FileNotFoundError(f"recipe not found: {name}")
 
 
-def run_recipe(name: str, args: Optional[dict] = None) -> dict:
+def run_recipe(name: str, args: dict | None = None) -> dict:
     """Execute a recipe end-to-end, returning a structured trace.
 
     Each step is dispatched to its registered action function with kwargs
@@ -161,7 +168,10 @@ def run_recipe(name: str, args: Optional[dict] = None) -> dict:
             return {"ok": False, "recipe": name, "step": i, "error": f"step {i} missing 'action'"}
         if action not in _ACTION_REGISTRY:
             return {
-                "ok": False, "recipe": name, "step": i, "action": action,
+                "ok": False,
+                "recipe": name,
+                "step": i,
+                "action": action,
                 "error": f"unknown action '{action}'. Available: {registered_actions()[:20]}",
                 "trace": trace,
             }
@@ -171,14 +181,22 @@ def run_recipe(name: str, args: Optional[dict] = None) -> dict:
             resolved = _substitute(raw_args, context)
         except Exception as e:
             return {
-                "ok": False, "recipe": name, "step": i, "step_id": step_id,
-                "action": action, "error": f"arg substitution failed: {e}",
+                "ok": False,
+                "recipe": name,
+                "step": i,
+                "step_id": step_id,
+                "action": action,
+                "error": f"arg substitution failed: {e}",
                 "trace": trace,
             }
         if not isinstance(resolved, dict):
             return {
-                "ok": False, "recipe": name, "step": i, "step_id": step_id,
-                "action": action, "error": f"args must be a mapping, got {type(resolved).__name__}",
+                "ok": False,
+                "recipe": name,
+                "step": i,
+                "step_id": step_id,
+                "action": action,
+                "error": f"args must be a mapping, got {type(resolved).__name__}",
                 "trace": trace,
             }
 
@@ -187,15 +205,23 @@ def run_recipe(name: str, args: Optional[dict] = None) -> dict:
             result = fn(**resolved)
         except TypeError as e:
             return {
-                "ok": False, "recipe": name, "step": i, "step_id": step_id,
-                "action": action, "args": resolved,
+                "ok": False,
+                "recipe": name,
+                "step": i,
+                "step_id": step_id,
+                "action": action,
+                "args": resolved,
                 "error": f"action call failed: {e}",
                 "trace": trace,
             }
         except Exception as e:
             return {
-                "ok": False, "recipe": name, "step": i, "step_id": step_id,
-                "action": action, "args": resolved,
+                "ok": False,
+                "recipe": name,
+                "step": i,
+                "step_id": step_id,
+                "action": action,
+                "args": resolved,
                 "error": f"{type(e).__name__}: {e}",
                 "trace": trace,
             }
@@ -203,8 +229,13 @@ def run_recipe(name: str, args: Optional[dict] = None) -> dict:
         # If the action returned a dict with ok=False, recipe fails here.
         if isinstance(result, dict) and result.get("ok") is False:
             return {
-                "ok": False, "recipe": name, "step": i, "step_id": step_id,
-                "action": action, "result": result, "trace": trace,
+                "ok": False,
+                "recipe": name,
+                "step": i,
+                "step_id": step_id,
+                "action": action,
+                "result": result,
+                "trace": trace,
             }
 
         # Store result in context. Wrap non-dict results so step.field works.

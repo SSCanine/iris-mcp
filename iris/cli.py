@@ -4,6 +4,7 @@
 `iris-mcp-bench` -> runs the live accuracy bench (see iris.bench.runner)
 `iris-mcp-doctor` -> environment diagnostics (see iris.doctor)
 """
+
 from __future__ import annotations
 
 import sys
@@ -35,5 +36,6 @@ def serve() -> int:
     sys.path.insert(0, str(server_path.parent))
 
     import runpy
+
     runpy.run_path(str(server_path), run_name="__main__")
     return 0

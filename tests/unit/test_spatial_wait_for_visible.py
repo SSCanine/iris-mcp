@@ -1,15 +1,21 @@
 """Tests for spatial.wait_for_window_visible — the post-restore poll helper."""
+
 import pytest
 
-from iris.geometry import Rect
-from iris.spatial import wait_for_window_visible, WindowInfo
 from iris import spatial as spatial_mod
+from iris.geometry import Rect
+from iris.spatial import WindowInfo, wait_for_window_visible
 
 
 def _info(hwnd=123, minimized=False, x=100):
     return WindowInfo(
-        hwnd=hwnd, pid=1, exe_name="x.exe", title="X",
-        bounds=Rect(x, 0, 100, 100), visible=True, minimized=minimized,
+        hwnd=hwnd,
+        pid=1,
+        exe_name="x.exe",
+        title="X",
+        bounds=Rect(x, 0, 100, 100),
+        visible=True,
+        minimized=minimized,
     )
 
 
@@ -18,6 +24,7 @@ def patch_iswindow_true(monkeypatch):
     if not spatial_mod.HAS_WIN32:
         pytest.skip("Win32 not available")
     import win32gui
+
     monkeypatch.setattr(win32gui, "IsWindow", lambda h: True)
 
 
@@ -56,6 +63,7 @@ def test_returns_none_when_hwnd_invalid(monkeypatch):
     if not spatial_mod.HAS_WIN32:
         pytest.skip("Win32 not available")
     import win32gui
+
     monkeypatch.setattr(win32gui, "IsWindow", lambda h: False)
     out = wait_for_window_visible(999, timeout_ms=50)
     assert out is None

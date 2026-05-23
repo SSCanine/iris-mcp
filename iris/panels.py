@@ -4,10 +4,10 @@ Generic across Qt (QDockWidget, OBSDock), Win32, and most Electron layouts.
 Pure-data: takes the output of semantic.walk_tree + vision.cached_ocr and returns
 a ranked panel manifest. No live Win32 or UIA calls; safe to unit test.
 """
-from __future__ import annotations
-import re
-from typing import Optional
 
+from __future__ import annotations
+
+import re
 
 # Class names that strongly indicate a dock/panel container.
 # Case-sensitive on 'Dock' to avoid false positives from words like 'document'.
@@ -52,8 +52,9 @@ def _is_dock_node(node: dict) -> bool:
     return False
 
 
-def _ocr_label_in_band(panel_bounds: dict, panel_name: str,
-                       ocr_words: list[dict], band_height: int = 40) -> Optional[dict]:
+def _ocr_label_in_band(
+    panel_bounds: dict, panel_name: str, ocr_words: list[dict], band_height: int = 40
+) -> dict | None:
     """Find an OCR word inside the panel's title band that matches its name.
 
     Returns the matching OCR entry (dict with text/bbox/confidence) or None.
@@ -99,13 +100,18 @@ def _detect_tabbed(panel_bounds: dict, all_nodes: list[dict]) -> bool:
         if not _TABBAR_CLASS_RE.search(cn):
             continue
         b = _bounds_dict(n)
-        if abs((b["y"] + b["height"]) - bottom) <= 30 and b["x"] >= px - 5 and (b["x"] + b["width"]) <= (px + pw + 5):
+        if (
+            abs((b["y"] + b["height"]) - bottom) <= 30
+            and b["x"] >= px - 5
+            and (b["x"] + b["width"]) <= (px + pw + 5)
+        ):
             return True
     return False
 
 
-def discover_panels(uia_tree: list[dict], ocr_words: list[dict],
-                    window_bounds: dict, *, min_area_pct: float = 0.05) -> list[dict]:
+def discover_panels(
+    uia_tree: list[dict], ocr_words: list[dict], window_bounds: dict, *, min_area_pct: float = 0.05
+) -> list[dict]:
     """Return ranked dock/panel containers in the window.
 
     Args:
@@ -132,18 +138,17 @@ def discover_panels(uia_tree: list[dict], ocr_words: list[dict],
         if depth == 0:
             continue
         is_strong = _is_dock_node(node)
-        is_weak = (
-            depth <= 2
-            and role in _PANEL_ROLES
-            and (area / win_area) >= min_area_pct
-        )
+        is_weak = depth <= 2 and role in _PANEL_ROLES and (area / win_area) >= min_area_pct
         if not (is_strong or is_weak):
             continue
         # De-dup by (automation_id, name, bounds) to handle Qt's nested wrappers.
         key = (
             node.get("automation_id") or "",
             node.get("name") or "",
-            bounds["x"], bounds["y"], bounds["width"], bounds["height"],
+            bounds["x"],
+            bounds["y"],
+            bounds["width"],
+            bounds["height"],
         )
         if key in seen_keys:
             continue
@@ -164,28 +169,32 @@ def discover_panels(uia_tree: list[dict], ocr_words: list[dict],
             source = "uia"
             confidence = "medium"
 
-        panels.append({
-            "id": node.get("automation_id") or name or f"panel_{len(panels)}",
-            "name": name,
-            "automation_id": node.get("automation_id") or "",
-            "class_name": node.get("class_name") or "",
-            "role": role,
-            "bounds": bounds,
-            "source": source,
-            "confidence": confidence,
-            "hidden": _is_hidden(bounds),
-            "tabbed": _detect_tabbed(bounds, uia_tree),
-            "area": area,
-            "depth": depth,
-        })
+        panels.append(
+            {
+                "id": node.get("automation_id") or name or f"panel_{len(panels)}",
+                "name": name,
+                "automation_id": node.get("automation_id") or "",
+                "class_name": node.get("class_name") or "",
+                "role": role,
+                "bounds": bounds,
+                "source": source,
+                "confidence": confidence,
+                "hidden": _is_hidden(bounds),
+                "tabbed": _detect_tabbed(bounds, uia_tree),
+                "area": area,
+                "depth": depth,
+            }
+        )
 
     # Stable sort: visible panels first, then by confidence rank, then area.
     rank = {"very_high": 3, "high": 2, "medium": 1}
-    panels.sort(key=lambda p: (
-        p["hidden"],
-        -rank.get(p["confidence"], 0),
-        -p["area"],
-    ))
+    panels.sort(
+        key=lambda p: (
+            p["hidden"],
+            -rank.get(p["confidence"], 0),
+            -p["area"],
+        )
+    )
     return panels
 
 
@@ -193,13 +202,18 @@ def discover_panels(uia_tree: list[dict], ocr_words: list[dict],
 # Panel item discovery
 # ---------------------------------------------------------------------------
 _CLICKABLE_ROLES = {
-    "ButtonControl", "CheckBoxControl", "RadioButtonControl",
-    "ListItemControl", "TreeItemControl", "TabItemControl",
-    "MenuItemControl", "HyperlinkControl",
+    "ButtonControl",
+    "CheckBoxControl",
+    "RadioButtonControl",
+    "ListItemControl",
+    "TreeItemControl",
+    "TabItemControl",
+    "MenuItemControl",
+    "HyperlinkControl",
 }
 
 
-def _resolve_parent_panel(uia_tree: list[dict], panel_query: str) -> Optional[dict]:
+def _resolve_parent_panel(uia_tree: list[dict], panel_query: str) -> dict | None:
     """Find the panel node matching panel_query (id, automation_id, or name).
 
     Match priority: exact automation_id, exact name (ci), then substring.

@@ -1,10 +1,12 @@
 """Action verification: polling helpers."""
-from __future__ import annotations
-import time
-from typing import Callable
 
-from iris.tokens import FocusToken
+from __future__ import annotations
+
+import time
+from collections.abc import Callable
+
 from iris import resolver as resolver_mod
+from iris.tokens import FocusToken
 
 
 def _backoff_iter(start_ms: int, max_ms: int, factor: float):
@@ -14,9 +16,15 @@ def _backoff_iter(start_ms: int, max_ms: int, factor: float):
         cur = min(int(cur * factor), max_ms)
 
 
-def wait_for_text(token: FocusToken, text: str, *,
-                  timeout_ms: int = 3000, start_interval_ms: int = 100,
-                  max_interval_ms: int = 500, factor: float = 1.3) -> dict:
+def wait_for_text(
+    token: FocusToken,
+    text: str,
+    *,
+    timeout_ms: int = 3000,
+    start_interval_ms: int = 100,
+    max_interval_ms: int = 500,
+    factor: float = 1.3,
+) -> dict:
     """Poll resolver.find for text. Returns {found, elapsed_ms, polls}."""
     deadline = time.perf_counter() + (timeout_ms / 1000.0)
     polls = 0
@@ -41,9 +49,15 @@ def wait_for_text(token: FocusToken, text: str, *,
     }
 
 
-def wait_for_no_text(token: FocusToken, text: str, *,
-                     timeout_ms: int = 3000, start_interval_ms: int = 100,
-                     max_interval_ms: int = 500, factor: float = 1.3) -> dict:
+def wait_for_no_text(
+    token: FocusToken,
+    text: str,
+    *,
+    timeout_ms: int = 3000,
+    start_interval_ms: int = 100,
+    max_interval_ms: int = 500,
+    factor: float = 1.3,
+) -> dict:
     """Poll until text is NO LONGER found (e.g. 'Start Recording' disappears after click)."""
     deadline = time.perf_counter() + (timeout_ms / 1000.0)
     polls = 0
@@ -67,9 +81,14 @@ def wait_for_no_text(token: FocusToken, text: str, *,
     }
 
 
-def wait_for_drift(token: FocusToken, *,
-                   timeout_ms: int = 3000, start_interval_ms: int = 150,
-                   max_interval_ms: int = 500, factor: float = 1.4) -> dict:
+def wait_for_drift(
+    token: FocusToken,
+    *,
+    timeout_ms: int = 3000,
+    start_interval_ms: int = 150,
+    max_interval_ms: int = 500,
+    factor: float = 1.4,
+) -> dict:
     """Poll the window's UIA fingerprint until it differs from the initial
     snapshot. Returns as soon as drift is detected (or on timeout).
 
@@ -80,19 +99,17 @@ def wait_for_drift(token: FocusToken, *,
     Falls back gracefully when UIA is unavailable: returns {drifted: false,
     error: "uia_unavailable"}.
     """
-    from iris import semantic as semantic_mod
     from iris import fingerprint as fp_mod
+    from iris import semantic as semantic_mod
 
     if not semantic_mod.HAS_UIA:
-        return {"drifted": False, "error": "uia_unavailable",
-                "elapsed_ms": 0, "polls": 0}
+        return {"drifted": False, "error": "uia_unavailable", "elapsed_ms": 0, "polls": 0}
 
     try:
         initial_dump = semantic_mod.walk_tree(token.hwnd, max_depth=4, max_nodes=80)
         initial_fp = fp_mod.compute_fingerprint(initial_dump)
     except Exception as e:
-        return {"drifted": False, "error": f"initial_dump_failed: {e}",
-                "elapsed_ms": 0, "polls": 0}
+        return {"drifted": False, "error": f"initial_dump_failed: {e}", "elapsed_ms": 0, "polls": 0}
 
     deadline = time.perf_counter() + (timeout_ms / 1000.0)
     polls = 0
@@ -126,8 +143,9 @@ def wait_for_drift(token: FocusToken, *,
     }
 
 
-def wait_for(predicate: Callable[[], bool], *,
-             timeout_ms: int = 3000, interval_ms: int = 100) -> dict:
+def wait_for(
+    predicate: Callable[[], bool], *, timeout_ms: int = 3000, interval_ms: int = 100
+) -> dict:
     """Generic predicate poll. Returns {ok, elapsed_ms, polls}."""
     deadline = time.perf_counter() + (timeout_ms / 1000.0)
     polls = 0

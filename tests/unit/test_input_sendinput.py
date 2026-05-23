@@ -3,9 +3,9 @@
 These don't actually move the cursor in the user's session, they exercise the
 internal coordinate normalization and the input-struct construction.
 """
+
 from __future__ import annotations
 
-import ctypes
 import pytest
 
 from iris import input as input_mod

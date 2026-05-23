@@ -9,16 +9,15 @@ This module deliberately avoids subprocess where pure Win32 will do, and
 fails closed (returns ok=False) rather than silently succeeding with stale
 data.
 """
+
 from __future__ import annotations
 
-import os
-import time
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
     import win32clipboard
     import win32con
+
     HAS_CLIPBOARD = True
 except ImportError:
     HAS_CLIPBOARD = False
@@ -26,18 +25,21 @@ except ImportError:
 try:
     import win32gui
     import win32process
+
     HAS_WIN32 = True
 except ImportError:
     HAS_WIN32 = False
 
 try:
     import winreg
+
     HAS_WINREG = True
 except ImportError:
     HAS_WINREG = False
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
@@ -112,8 +114,7 @@ def clipboard_set(text: str) -> dict:
 # ---------------------------------------------------------------------------
 # Processes
 # ---------------------------------------------------------------------------
-def list_processes(*, name_contains: Optional[str] = None,
-                   limit: int = 200) -> dict:
+def list_processes(*, name_contains: str | None = None, limit: int = 200) -> dict:
     """Enumerate running processes.
 
     Returns a list of {pid, name, exe, status, cpu_percent, memory_mb,
@@ -135,14 +136,16 @@ def list_processes(*, name_contains: Optional[str] = None,
                 mem = round(p.memory_info().rss / (1024 * 1024), 1)
             except Exception:
                 pass
-            out.append({
-                "pid": info["pid"],
-                "name": info.get("name") or "",
-                "exe": info.get("exe") or "",
-                "status": info.get("status") or "",
-                "memory_mb": mem,
-                "create_time": info.get("create_time"),
-            })
+            out.append(
+                {
+                    "pid": info["pid"],
+                    "name": info.get("name") or "",
+                    "exe": info.get("exe") or "",
+                    "status": info.get("status") or "",
+                    "memory_mb": mem,
+                    "create_time": info.get("create_time"),
+                }
+            )
             if len(out) >= limit:
                 break
         except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -159,11 +162,13 @@ def find_process(name: str) -> dict:
     for p in psutil.process_iter(["pid", "name", "exe"]):
         try:
             if (p.info.get("name") or "").lower() == needle:
-                matches.append({
-                    "pid": p.info["pid"],
-                    "name": p.info.get("name") or "",
-                    "exe": p.info.get("exe") or "",
-                })
+                matches.append(
+                    {
+                        "pid": p.info["pid"],
+                        "name": p.info.get("name") or "",
+                        "exe": p.info.get("exe") or "",
+                    }
+                )
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return {"ok": True, "matches": matches, "count": len(matches)}
@@ -184,11 +189,17 @@ def kill_process(pid: int, *, force: bool = False) -> dict:
         return {"ok": False, "reason": "psutil_unavailable"}
     pid = int(pid)
     if pid in _PROTECTED_PIDS:
-        return {"ok": False, "reason": "protected_pid",
-                "hint": f"pid {pid} is a kernel/system process; refusing"}
+        return {
+            "ok": False,
+            "reason": "protected_pid",
+            "hint": f"pid {pid} is a kernel/system process; refusing",
+        }
     if not force:
-        return {"ok": False, "reason": "force_required",
-                "hint": "pass force=True to confirm killing this pid"}
+        return {
+            "ok": False,
+            "reason": "force_required",
+            "hint": "pass force=True to confirm killing this pid",
+        }
     try:
         p = psutil.Process(pid)
         name = p.name()
@@ -202,8 +213,7 @@ def kill_process(pid: int, *, force: bool = False) -> dict:
     except psutil.NoSuchProcess:
         return {"ok": False, "reason": "no_such_process", "pid": pid}
     except psutil.AccessDenied:
-        return {"ok": False, "reason": "access_denied", "pid": pid,
-                "hint": "run as administrator"}
+        return {"ok": False, "reason": "access_denied", "pid": pid, "hint": "run as administrator"}
     except Exception as e:
         return {"ok": False, "reason": f"kill_failed:{e}", "pid": pid}
 
@@ -223,10 +233,12 @@ def notify(title: str, body: str = "", *, duration_seconds: float = 5.0) -> dict
 
     # Modern path: winsdk (Windows.UI.Notifications)
     try:
-        from winsdk.windows.ui.notifications import (
-            ToastNotificationManager, ToastNotification,
-        )
         from winsdk.windows.data.xml.dom import XmlDocument
+        from winsdk.windows.ui.notifications import (
+            ToastNotification,
+            ToastNotificationManager,
+        )
+
         xml = f"""
         <toast>
           <visual>
@@ -270,17 +282,17 @@ def _xml_escape(s: str) -> str:
 # ---------------------------------------------------------------------------
 # Window state (minimize / maximize / restore / close)
 # ---------------------------------------------------------------------------
-SW_HIDE             = 0
-SW_NORMAL           = 1
-SW_SHOWMINIMIZED    = 2
-SW_MAXIMIZE         = 3
-SW_SHOWMAXIMIZED    = 3
-SW_SHOWNOACTIVATE   = 4
-SW_SHOW             = 5
-SW_MINIMIZE         = 6
-SW_SHOWMINNOACTIVE  = 7
-SW_SHOWNA           = 8
-SW_RESTORE          = 9
+SW_HIDE = 0
+SW_NORMAL = 1
+SW_SHOWMINIMIZED = 2
+SW_MAXIMIZE = 3
+SW_SHOWMAXIMIZED = 3
+SW_SHOWNOACTIVATE = 4
+SW_SHOW = 5
+SW_MINIMIZE = 6
+SW_SHOWMINNOACTIVE = 7
+SW_SHOWNA = 8
+SW_RESTORE = 9
 WM_CLOSE = 0x0010
 
 
@@ -372,22 +384,28 @@ def registry_read(hive: str, key_path: str, value_name: str = "") -> dict:
         return {"ok": False, "reason": "winreg_unavailable"}
     h = _hive_const(hive)
     if h is None:
-        return {"ok": False, "reason": "unknown_hive",
-                "hint": f"valid: {sorted(set(_HIVES))}"}
+        return {"ok": False, "reason": "unknown_hive", "hint": f"valid: {sorted(set(_HIVES))}"}
     try:
         with winreg.OpenKey(h, key_path, 0, winreg.KEY_READ) as k:
             value, vtype = winreg.QueryValueEx(k, value_name)
             return {
-                "ok": True, "hive": hive, "key_path": key_path,
-                "value_name": value_name, "type": _reg_type_name(vtype),
+                "ok": True,
+                "hive": hive,
+                "key_path": key_path,
+                "value_name": value_name,
+                "type": _reg_type_name(vtype),
                 "value": value,
             }
     except FileNotFoundError:
-        return {"ok": False, "reason": "key_or_value_not_found",
-                "hive": hive, "key_path": key_path, "value_name": value_name}
+        return {
+            "ok": False,
+            "reason": "key_or_value_not_found",
+            "hive": hive,
+            "key_path": key_path,
+            "value_name": value_name,
+        }
     except PermissionError:
-        return {"ok": False, "reason": "access_denied",
-                "hint": "some keys require administrator"}
+        return {"ok": False, "reason": "access_denied", "hint": "some keys require administrator"}
     except Exception as e:
         return {"ok": False, "reason": f"read_failed:{e}"}
 
@@ -410,14 +428,22 @@ def registry_list_values(hive: str, key_path: str) -> dict:
             for i in range(num_values):
                 try:
                     name, value, vtype = winreg.EnumValue(k, i)
-                    values.append({
-                        "name": name, "type": _reg_type_name(vtype),
-                        "value": value,
-                    })
+                    values.append(
+                        {
+                            "name": name,
+                            "type": _reg_type_name(vtype),
+                            "value": value,
+                        }
+                    )
                 except OSError:
                     break
-            return {"ok": True, "hive": hive, "key_path": key_path,
-                    "values": values, "count": len(values)}
+            return {
+                "ok": True,
+                "hive": hive,
+                "key_path": key_path,
+                "values": values,
+                "count": len(values),
+            }
     except FileNotFoundError:
         return {"ok": False, "reason": "key_not_found"}
     except Exception as e:
@@ -425,9 +451,15 @@ def registry_list_values(hive: str, key_path: str) -> dict:
 
 
 _REG_TYPES = {
-    0: "REG_NONE", 1: "REG_SZ", 2: "REG_EXPAND_SZ", 3: "REG_BINARY",
-    4: "REG_DWORD", 5: "REG_DWORD_BIG_ENDIAN", 6: "REG_LINK",
-    7: "REG_MULTI_SZ", 11: "REG_QWORD",
+    0: "REG_NONE",
+    1: "REG_SZ",
+    2: "REG_EXPAND_SZ",
+    3: "REG_BINARY",
+    4: "REG_DWORD",
+    5: "REG_DWORD_BIG_ENDIAN",
+    6: "REG_LINK",
+    7: "REG_MULTI_SZ",
+    11: "REG_QWORD",
 }
 
 
@@ -435,9 +467,15 @@ def _reg_type_name(t: int) -> str:
     return _REG_TYPES.get(int(t), f"REG_TYPE_{t}")
 
 
-def registry_write(hive: str, key_path: str, value_name: str,
-                   value: Any, value_type: str = "REG_SZ",
-                   *, confirm: bool = False) -> dict:
+def registry_write(
+    hive: str,
+    key_path: str,
+    value_name: str,
+    value: Any,
+    value_type: str = "REG_SZ",
+    *,
+    confirm: bool = False,
+) -> dict:
     """Write a registry value. Requires confirm=True for safety.
 
     value_type one of: REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD,
@@ -446,31 +484,44 @@ def registry_write(hive: str, key_path: str, value_name: str,
     if not HAS_WINREG:
         return {"ok": False, "reason": "winreg_unavailable"}
     if not confirm:
-        return {"ok": False, "reason": "confirm_required",
-                "hint": "registry writes are destructive; pass confirm=True"}
+        return {
+            "ok": False,
+            "reason": "confirm_required",
+            "hint": "registry writes are destructive; pass confirm=True",
+        }
     h = _hive_const(hive)
     if h is None:
         return {"ok": False, "reason": "unknown_hive"}
     type_const = getattr(winreg, value_type, None)
     if type_const is None:
-        return {"ok": False, "reason": "unknown_value_type",
-                "hint": "valid: REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD, REG_MULTI_SZ, REG_BINARY"}
+        return {
+            "ok": False,
+            "reason": "unknown_value_type",
+            "hint": "valid: REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD, REG_MULTI_SZ, REG_BINARY",
+        }
     try:
         with winreg.CreateKey(h, key_path) as k:
             winreg.SetValueEx(k, value_name, 0, type_const, value)
         return {
-            "ok": True, "hive": hive, "key_path": key_path,
-            "value_name": value_name, "type": value_type,
+            "ok": True,
+            "hive": hive,
+            "key_path": key_path,
+            "value_name": value_name,
+            "type": value_type,
         }
     except PermissionError:
-        return {"ok": False, "reason": "access_denied",
-                "hint": "writes to HKLM and some HKCU paths require administrator"}
+        return {
+            "ok": False,
+            "reason": "access_denied",
+            "hint": "writes to HKLM and some HKCU paths require administrator",
+        }
     except Exception as e:
         return {"ok": False, "reason": f"write_failed:{e}"}
 
 
-def registry_delete_value(hive: str, key_path: str, value_name: str,
-                          *, confirm: bool = False) -> dict:
+def registry_delete_value(
+    hive: str, key_path: str, value_name: str, *, confirm: bool = False
+) -> dict:
     """Delete a registry value. Requires confirm=True."""
     if not HAS_WINREG:
         return {"ok": False, "reason": "winreg_unavailable"}
@@ -482,8 +533,7 @@ def registry_delete_value(hive: str, key_path: str, value_name: str,
     try:
         with winreg.OpenKey(h, key_path, 0, winreg.KEY_SET_VALUE) as k:
             winreg.DeleteValue(k, value_name)
-        return {"ok": True, "hive": hive, "key_path": key_path,
-                "value_name": value_name}
+        return {"ok": True, "hive": hive, "key_path": key_path, "value_name": value_name}
     except FileNotFoundError:
         return {"ok": False, "reason": "key_or_value_not_found"}
     except PermissionError:

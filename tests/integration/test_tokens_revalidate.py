@@ -1,9 +1,11 @@
 """Integration tests for token revalidation against the harness."""
-import pytest
+
 import time
 
-from iris.tokens import FocusToken, revalidate, inspect
-from iris.spatial import _make_window_info, get_monitor_for_window, HAS_WIN32
+import pytest
+
+from iris.spatial import HAS_WIN32, _make_window_info, get_monitor_for_window
+from iris.tokens import FocusToken, inspect, revalidate
 
 pytestmark = pytest.mark.skipif(not HAS_WIN32, reason="Win32 only")
 
@@ -12,8 +14,12 @@ def _make_token(hwnd):
     info = _make_window_info(hwnd)
     monitor = get_monitor_for_window(info.bounds)
     return FocusToken.create(
-        hwnd=info.hwnd, pid=info.pid, exe_name=info.exe_name,
-        title=info.title, monitor_index=max(monitor, 0), bounds=info.bounds,
+        hwnd=info.hwnd,
+        pid=info.pid,
+        exe_name=info.exe_name,
+        title=info.title,
+        monitor_index=max(monitor, 0),
+        bounds=info.bounds,
     )
 
 

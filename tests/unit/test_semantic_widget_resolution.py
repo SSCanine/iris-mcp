@@ -1,4 +1,5 @@
 """Unit tests for the OCR -> UIA widget upgrade helpers in semantic.py."""
+
 from __future__ import annotations
 
 import pytest

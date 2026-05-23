@@ -6,7 +6,9 @@ Used by integration tests and the self_test() MCP tool. Run standalone:
 
 Title is always "IRIS_TEST_HARNESS" so spatial.match_window can find it reliably.
 """
+
 from __future__ import annotations
+
 import argparse
 import sys
 import tkinter as tk
@@ -33,11 +35,15 @@ class HarnessApp:
             ttk.Button(self.root, text="Spawn Dialog", command=self._on_spawn_dialog).pack(pady=4)
             ttk.Button(self.root, text="Move Window", command=self._on_move).pack(pady=4)
             ttk.Button(self.root, text="Minimize Self", command=self._on_minimize).pack(pady=4)
-            ttk.Button(self.root, text="Simulate Update", command=self._on_simulate_update).pack(pady=4)
+            ttk.Button(self.root, text="Simulate Update", command=self._on_simulate_update).pack(
+                pady=4
+            )
         else:
             # Different control names after "update"
             ttk.Button(self.root, text="New Action", command=self._on_click_me).pack(pady=4)
-            ttk.Button(self.root, text="Different Dialog", command=self._on_spawn_dialog).pack(pady=4)
+            ttk.Button(self.root, text="Different Dialog", command=self._on_spawn_dialog).pack(
+                pady=4
+            )
             ttk.Button(self.root, text="Reset Layout", command=self._on_reset).pack(pady=4)
         ttk.Label(self.root, text="Type here:").pack(pady=2)
         self.entry = ttk.Entry(self.root)

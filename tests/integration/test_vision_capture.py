@@ -1,7 +1,7 @@
-import pytest
 from PIL import Image
-from iris.vision import capture, encode_jpeg, optimal_scale
+
 from iris.geometry import Rect
+from iris.vision import capture, encode_jpeg, optimal_scale
 
 
 def test_capture_primary_returns_image():

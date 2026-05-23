@@ -1,5 +1,6 @@
 from pathlib import Path
-from iris.tesseract_bootstrap import locate_tesseract, configure_tesseract
+
+from iris.tesseract_bootstrap import configure_tesseract, locate_tesseract
 
 
 def test_locate_tesseract_returns_path_or_none():

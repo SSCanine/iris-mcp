@@ -1,12 +1,12 @@
 """Pytest fixtures for Iris integration tests."""
+
 from __future__ import annotations
-import os
+
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -31,8 +31,9 @@ class HarnessHandle:
             pass
 
 
-def _wait_for_window(pid: int, timeout: float = 5.0) -> Optional[int]:
+def _wait_for_window(pid: int, timeout: float = 5.0) -> int | None:
     from iris.spatial import enumerate_windows
+
     deadline = time.time() + timeout
     while time.time() < deadline:
         for w in enumerate_windows():
@@ -48,8 +49,9 @@ def iris_harness():
     if not HARNESS_PATH.exists():
         pytest.skip("Test harness not found")
     cmd = [sys.executable, str(HARNESS_PATH), "--geometry", "400x350+50+50"]
-    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
     try:
         hwnd = _wait_for_window(proc.pid, timeout=5.0)
         if hwnd is None:
@@ -58,6 +60,7 @@ def iris_harness():
         # Raise harness to foreground so other apps don't occlude OCR pixels
         try:
             from iris.spatial import bring_to_front
+
             bring_to_front(hwnd)
             time.sleep(0.2)
         except Exception:

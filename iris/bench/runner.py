@@ -14,6 +14,7 @@ The harness window stays VISIBLE the whole time so you can watch Iris drive
 it in real time. The status bar at the top of the harness shows the most
 recent click receipt as each attempt completes.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,7 +27,6 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
 
 # DPI awareness BEFORE we import anything that touches Win32.
 try:
@@ -44,16 +44,14 @@ except Exception:
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent.parent))
 
-from iris import spatial as spatial_mod
+from iris import input as input_mod
 from iris import resolver as resolver_mod
 from iris import semantic as semantic_mod
+from iris import spatial as spatial_mod
 from iris import vision as vision_mod
-from iris import input as input_mod
-from iris.tokens import FocusToken
-from iris.geometry import Rect
-
 from iris.bench.harness import TARGETS, TargetSpec
 from iris.bench.scenarios import SCENARIOS, Scenario, scenario_by_id
+from iris.tokens import FocusToken
 
 
 # ---------------------------------------------------------------------------
@@ -66,21 +64,21 @@ class AttemptResult:
     target_id: str
     target_label: str
     # Find outcome
-    find_backend: Optional[str] = None
+    find_backend: str | None = None
     find_elapsed_ms: float = 0.0
     find_found: bool = False
     upgraded_to_uia: bool = False
     # Click outcome
-    click_method: Optional[str] = None
-    click_pattern: Optional[str] = None
-    click_x: Optional[int] = None
-    click_y: Optional[int] = None
-    click_error: Optional[str] = None
+    click_method: str | None = None
+    click_pattern: str | None = None
+    click_x: int | None = None
+    click_y: int | None = None
+    click_error: str | None = None
     # Truth from the harness (None if the click didn't land on a tracked button)
-    receipt_button: Optional[str] = None
-    receipt_hit_screen: Optional[list[int]] = None
-    receipt_center: Optional[list[int]] = None
-    miss_distance_px: Optional[float] = None
+    receipt_button: str | None = None
+    receipt_hit_screen: list[int] | None = None
+    receipt_center: list[int] | None = None
+    miss_distance_px: float | None = None
     # Overall status
     landed_on_correct_button: bool = False
     elapsed_ms: float = 0.0
@@ -122,8 +120,9 @@ class EventTailer:
                     continue
         return events
 
-    def wait_for(self, since_mark: int, kind: str,
-                 timeout_ms: int = 1500, poll_ms: int = 25) -> Optional[dict]:
+    def wait_for(
+        self, since_mark: int, kind: str, timeout_ms: int = 1500, poll_ms: int = 25
+    ) -> dict | None:
         """Block (poll) until an event of `kind` appears after `since_mark`."""
         deadline = time.time() + timeout_ms / 1000.0
         while time.time() < deadline:
@@ -140,24 +139,28 @@ class EventTailer:
 class HarnessProcess:
     """Manage spawning the harness GUI in a subprocess."""
 
-    def __init__(self, title: str, events_path: Path,
-                 geometry: str = "900x650+200+200"):
+    def __init__(self, title: str, events_path: Path, geometry: str = "900x650+200+200"):
         self.title = title
         self.events_path = events_path
         self.geometry = geometry
-        self.proc: Optional[subprocess.Popen] = None
-        self.hwnd: Optional[int] = None
-        self.pid: Optional[int] = None
+        self.proc: subprocess.Popen | None = None
+        self.hwnd: int | None = None
+        self.pid: int | None = None
 
     def start(self) -> None:
         # Empty the events file so we don't pick up old runs.
         self.events_path.parent.mkdir(parents=True, exist_ok=True)
         self.events_path.write_text("", encoding="utf-8")
         cmd = [
-            sys.executable, "-m", "iris.bench.harness",
-            "--title", self.title,
-            "--events", str(self.events_path),
-            "--geometry", self.geometry,
+            sys.executable,
+            "-m",
+            "iris.bench.harness",
+            "--title",
+            self.title,
+            "--events",
+            str(self.events_path),
+            "--geometry",
+            self.geometry,
         ]
         # Run the harness with the iris/ package importable.
         env = os.environ.copy()
@@ -202,13 +205,16 @@ def _make_token(hwnd: int, pid: int, title: str) -> FocusToken:
     if info_bounds is None:
         raise RuntimeError(f"hwnd {hwnd} has no bounds")
     return FocusToken.create(
-        hwnd=hwnd, pid=pid, exe_name="python.exe", title=title,
+        hwnd=hwnd,
+        pid=pid,
+        exe_name="python.exe",
+        title=title,
         monitor_index=spatial_mod.get_monitor_for_window(info_bounds),
         bounds=info_bounds,
     )
 
 
-def _latest_layout(tailer: EventTailer) -> Optional[dict]:
+def _latest_layout(tailer: EventTailer) -> dict | None:
     """Return the most recent layout_snapshot from the event log, or None."""
     events = tailer.read_new(0)
     snap = None
@@ -218,7 +224,7 @@ def _latest_layout(tailer: EventTailer) -> Optional[dict]:
     return snap
 
 
-def _ground_truth_for(target_id: str, tailer: EventTailer) -> Optional[dict]:
+def _ground_truth_for(target_id: str, tailer: EventTailer) -> dict | None:
     snap = _latest_layout(tailer)
     if snap is None:
         return None
@@ -298,8 +304,7 @@ def _attempt_one(
     # Click via the same logic as server.click(), inline so we don't need the
     # MCP layer running. Prefer UIA invoke when available (configurable).
     invoke_ctrl = fr.controls[0] if fr.controls else None
-    if (prefer_invoke and invoke_ctrl is not None
-            and semantic_mod.is_invoke_trusted(invoke_ctrl)):
+    if prefer_invoke and invoke_ctrl is not None and semantic_mod.is_invoke_trusted(invoke_ctrl):
         ir = semantic_mod.try_pattern_click(invoke_ctrl)
         if ir.get("ok"):
             r.click_method = "uia_pattern"
@@ -323,7 +328,7 @@ def _attempt_one(
     r.receipt_hit_screen = receipt.get("hit_screen")
     r.receipt_center = receipt.get("button_center")
     r.miss_distance_px = receipt.get("miss_distance_px")
-    r.landed_on_correct_button = (r.receipt_button == target.id)
+    r.landed_on_correct_button = r.receipt_button == target.id
     r.elapsed_ms = (time.perf_counter() - t0) * 1000
 
     # If no click_receipt arrived, check if an `any_click` event landed
@@ -332,9 +337,7 @@ def _attempt_one(
         leak_events = [e for e in tailer.read_new(0) if e.get("kind") == "any_click"]
         if leak_events:
             last = leak_events[-1]
-            r.notes.append(
-                f"click_landed_on:{last.get('widget')}@{last.get('screen')}"
-            )
+            r.notes.append(f"click_landed_on:{last.get('widget')}@{last.get('screen')}")
         # Pull ground truth (where the button ACTUALLY is on screen) so we
         # can diagnose why the click missed.
         gt = _ground_truth_for(target.id, tailer)
@@ -378,7 +381,7 @@ def _print_attempt(r: AttemptResult) -> None:
     backend = r.find_backend or "-"
     method = r.click_method or "-"
     miss = f"{r.miss_distance_px:.1f}px" if r.miss_distance_px is not None else "n/a"
-    coords = (f"({r.click_x},{r.click_y})" if r.click_x is not None else "(-,-)")
+    coords = f"({r.click_x},{r.click_y})" if r.click_x is not None else "(-,-)"
     line = (
         f"  {status:>22} {CYAN}{r.target_id:<15}{RESET} "
         f"backend={backend:<14} method={method:<8} "
@@ -418,7 +421,7 @@ def _aggregate(results: list[AttemptResult]) -> dict:
             upgrades += 1
     misses_sorted = sorted(misses)
 
-    def pct(p: float) -> Optional[float]:
+    def pct(p: float) -> float | None:
         if not misses_sorted:
             return None
         idx = min(int(p * (len(misses_sorted) - 1)), len(misses_sorted) - 1)
@@ -445,9 +448,7 @@ def _build_report(results: list[AttemptResult]) -> dict:
     return {
         "ts": time.time(),
         "overall": _aggregate(results),
-        "per_scenario": {
-            sid: _aggregate(rs) for sid, rs in by_scenario.items()
-        },
+        "per_scenario": {sid: _aggregate(rs) for sid, rs in by_scenario.items()},
         "attempts": [asdict(r) for r in results],
     }
 
@@ -456,8 +457,8 @@ def _print_summary(report: dict) -> None:
     _print_section("SUMMARY")
     overall = report["overall"]
     print(f"  total attempts        : {overall['total']}", flush=True)
-    print(f"  find rate             : {overall['find_rate']*100:.1f}%", flush=True)
-    print(f"  correct-button rate   : {overall['correct_button_rate']*100:.1f}%", flush=True)
+    print(f"  find rate             : {overall['find_rate'] * 100:.1f}%", flush=True)
+    print(f"  correct-button rate   : {overall['correct_button_rate'] * 100:.1f}%", flush=True)
     if overall.get("miss_px_mean") is not None:
         print(f"  miss distance  mean   : {overall['miss_px_mean']} px", flush=True)
         print(f"  miss distance  p50    : {overall['miss_px_p50']} px", flush=True)
@@ -469,10 +470,13 @@ def _print_summary(report: dict) -> None:
 
     print(f"\n{BOLD}per-scenario:{RESET}", flush=True)
     for sid, agg in report["per_scenario"].items():
-        print(f"  {CYAN}{sid:<22}{RESET} correct={agg['correct_button_rate']*100:5.1f}%  "
-              f"miss_p50={agg.get('miss_px_p50')}  "
-              f"miss_p95={agg.get('miss_px_p95')}  "
-              f"backends={agg['backend_distribution']}", flush=True)
+        print(
+            f"  {CYAN}{sid:<22}{RESET} correct={agg['correct_button_rate'] * 100:5.1f}%  "
+            f"miss_p50={agg.get('miss_px_p50')}  "
+            f"miss_p95={agg.get('miss_px_p95')}  "
+            f"backends={agg['backend_distribution']}",
+            flush=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -514,14 +518,15 @@ def _initial_harness_geometry(width: int = 900, height: int = 650) -> str:
 
 def run_bench(
     scenarios: list[Scenario],
-    out_path: Optional[Path] = None,
+    out_path: Path | None = None,
     keep_harness: bool = False,
     prefer_invoke: bool = True,
 ) -> dict:
     events_path = Path(tempfile.gettempdir()) / "iris_bench_events.jsonl"
     title = "IRIS_BENCH_HARNESS"
     harness = HarnessProcess(
-        title=title, events_path=events_path,
+        title=title,
+        events_path=events_path,
         geometry=_initial_harness_geometry(),
     )
     tailer = EventTailer(events_path)
@@ -564,8 +569,12 @@ def run_bench(
                 if target is None:
                     continue
                 r = _attempt_one(
-                    tk_token, target, tailer, scenario.id,
-                    monitor_index, harness.hwnd,
+                    tk_token,
+                    target,
+                    tailer,
+                    scenario.id,
+                    monitor_index,
+                    harness.hwnd,
                     prefer_invoke=prefer_invoke,
                 )
                 results.append(r)
@@ -587,15 +596,21 @@ def run_bench(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenarios", default="",
-                        help="Comma-separated scenario ids. Default: all.")
-    parser.add_argument("--out", default="",
-                        help="Path to write JSON report. Default: $TEMP/iris_bench_report.json")
-    parser.add_argument("--keep-harness", action="store_true",
-                        help="Leave the harness window open after the run.")
-    parser.add_argument("--no-invoke", action="store_true",
-                        help="Disable UIA invoke fast-path. Forces geometric "
-                             "mouse clicks so we measure pixel accuracy.")
+    parser.add_argument(
+        "--scenarios", default="", help="Comma-separated scenario ids. Default: all."
+    )
+    parser.add_argument(
+        "--out", default="", help="Path to write JSON report. Default: $TEMP/iris_bench_report.json"
+    )
+    parser.add_argument(
+        "--keep-harness", action="store_true", help="Leave the harness window open after the run."
+    )
+    parser.add_argument(
+        "--no-invoke",
+        action="store_true",
+        help="Disable UIA invoke fast-path. Forces geometric "
+        "mouse clicks so we measure pixel accuracy.",
+    )
     args = parser.parse_args()
 
     if args.scenarios:
@@ -607,11 +622,14 @@ def main() -> int:
     else:
         chosen = SCENARIOS
 
-    out_path = Path(args.out) if args.out else Path(tempfile.gettempdir()) / "iris_bench_report.json"
+    out_path = (
+        Path(args.out) if args.out else Path(tempfile.gettempdir()) / "iris_bench_report.json"
+    )
 
     try:
         report = run_bench(
-            chosen, out_path=out_path,
+            chosen,
+            out_path=out_path,
             keep_harness=args.keep_harness,
             prefer_invoke=not args.no_invoke,
         )

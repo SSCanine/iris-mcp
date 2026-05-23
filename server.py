@@ -7,13 +7,14 @@ Built alongside server.py (v1). Cutover happens by:
 
 Or test before cutover by changing the MCP config to point at server_v2.py.
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +30,7 @@ from typing import Any, Optional
 # ---------------------------------------------------------------------------
 def _set_dpi_awareness() -> str:
     import ctypes
+
     try:
         ctx = ctypes.c_void_p(-4)  # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
         if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctx):
@@ -51,7 +53,6 @@ def _set_dpi_awareness() -> str:
 _DPI_MODE = _set_dpi_awareness()
 
 import pyautogui
-
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp import Image as MCPImage
 
@@ -59,23 +60,29 @@ from mcp.server.fastmcp import Image as MCPImage
 _HERE = Path(__file__).parent
 sys.path.insert(0, str(_HERE))
 
-from iris.geometry import Rect
-from iris.tokens import (
-    FocusToken, default_registry, revalidate as token_revalidate, inspect as token_inspect,
-)
-from iris import spatial as spatial_mod
-from iris import semantic as semantic_mod
-from iris import vision as vision_mod
-from iris import resolver as resolver_mod
-from iris import verify as verify_mod
 from iris import fingerprint as fingerprint_mod
+from iris import input as input_mod
 from iris import launcher as launcher_mod
 from iris import panels as panels_mod
 from iris import recipes as recipes_mod
-from iris import input as input_mod
+from iris import resolver as resolver_mod
+from iris import semantic as semantic_mod
+from iris import spatial as spatial_mod
 from iris import system as system_mod
+from iris import verify as verify_mod
+from iris import vision as vision_mod
+from iris.geometry import Rect
 from iris.self_test import run_self_test as run_self_test_impl
-
+from iris.tokens import (
+    FocusToken,
+    default_registry,
+)
+from iris.tokens import (
+    inspect as token_inspect,
+)
+from iris.tokens import (
+    revalidate as token_revalidate,
+)
 
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.0
@@ -99,6 +106,7 @@ def _resolve_log_dir() -> Path:
         return repo_logs
     try:
         from platformdirs import user_log_dir
+
         return Path(user_log_dir("iris-mcp"))
     except ImportError:
         return repo_logs
@@ -155,8 +163,12 @@ def _make_token_for_window(info) -> FocusToken:
         except Exception:
             fp = None
     tk = FocusToken.create(
-        hwnd=info.hwnd, pid=info.pid, exe_name=info.exe_name,
-        title=info.title, monitor_index=monitor, bounds=info.bounds,
+        hwnd=info.hwnd,
+        pid=info.pid,
+        exe_name=info.exe_name,
+        title=info.title,
+        monitor_index=monitor,
+        bounds=info.bounds,
         fingerprint=fp,
     )
     registry.store(tk)
@@ -167,8 +179,9 @@ def _make_token_for_window(info) -> FocusToken:
 #  V1 BACKWARDS COMPAT TOOLS (keep these stable!)
 # ===========================================================================
 @mcp.tool()
-def screenshot(monitor: int = 0, region: dict[str, int] | None = None,
-               quality: int = 60) -> MCPImage:
+def screenshot(
+    monitor: int = 0, region: dict[str, int] | None = None, quality: int = 60
+) -> MCPImage:
     """Capture the screen, token-optimized (~1590 tokens). Default tool for seeing the desktop.
 
     Args:
@@ -178,8 +191,12 @@ def screenshot(monitor: int = 0, region: dict[str, int] | None = None,
     """
     bounds = None
     if region:
-        bounds = Rect(int(region.get("x", 0)), int(region.get("y", 0)),
-                      int(region.get("width", 800)), int(region.get("height", 600)))
+        bounds = Rect(
+            int(region.get("x", 0)),
+            int(region.get("y", 0)),
+            int(region.get("width", 800)),
+            int(region.get("height", 600)),
+        )
     img = vision_mod.capture(bounds=bounds, monitor=monitor)
     data, w, h = vision_mod.encode_jpeg(img, quality=quality, optimize_tokens=True)
     log.info("screenshot %dx%d", w, h)
@@ -187,8 +204,9 @@ def screenshot(monitor: int = 0, region: dict[str, int] | None = None,
 
 
 @mcp.tool()
-def screenshot_full(monitor: int = 0, region: dict[str, int] | None = None,
-                    quality: int = 85) -> MCPImage:
+def screenshot_full(
+    monitor: int = 0, region: dict[str, int] | None = None, quality: int = 85
+) -> MCPImage:
     """Full-resolution screenshot. WARNING: 6K-44K+ tokens. Use only for tiny text.
 
     Args:
@@ -198,8 +216,12 @@ def screenshot_full(monitor: int = 0, region: dict[str, int] | None = None,
     """
     bounds = None
     if region:
-        bounds = Rect(int(region.get("x", 0)), int(region.get("y", 0)),
-                      int(region.get("width", 800)), int(region.get("height", 600)))
+        bounds = Rect(
+            int(region.get("x", 0)),
+            int(region.get("y", 0)),
+            int(region.get("width", 800)),
+            int(region.get("height", 600)),
+        )
     img = vision_mod.capture(bounds=bounds, monitor=monitor)
     data, w, h = vision_mod.encode_jpeg(img, quality=quality, optimize_tokens=False)
     log.info("screenshot_full %dx%d", w, h)
@@ -258,23 +280,30 @@ def mouse_move(x: int, y: int, duration: float = 0.0) -> dict[str, Any]:
 
 
 @mcp.tool()
-def mouse_click(x: int | None = None, y: int | None = None,
-                button: str = "left", clicks: int = 1) -> dict[str, Any]:
+def mouse_click(
+    x: int | None = None, y: int | None = None, button: str = "left", clicks: int = 1
+) -> dict[str, Any]:
     """Click the mouse at (x, y) or current position. Atomic SendInput delivery."""
     return input_mod.click(
         x=int(x) if x is not None else None,
         y=int(y) if y is not None else None,
-        button=button, clicks=int(clicks),
+        button=button,
+        clicks=int(clicks),
     )
 
 
 @mcp.tool()
-def mouse_drag(start_x: int, start_y: int, end_x: int, end_y: int,
-               button: str = "left", duration: float = 0.3) -> dict[str, Any]:
+def mouse_drag(
+    start_x: int, start_y: int, end_x: int, end_y: int, button: str = "left", duration: float = 0.3
+) -> dict[str, Any]:
     """Drag the mouse from start to end. Stepped motion so apps detect a drag."""
     return input_mod.drag(
-        int(start_x), int(start_y), int(end_x), int(end_y),
-        button=button, duration_ms=int(max(0.0, float(duration)) * 1000),
+        int(start_x),
+        int(start_y),
+        int(end_x),
+        int(end_y),
+        button=button,
+        duration_ms=int(max(0.0, float(duration)) * 1000),
     )
 
 
@@ -320,8 +349,9 @@ def hotkey(keys: list[str]) -> dict[str, Any]:
 #  V2 NEW TOOLS
 # ===========================================================================
 @mcp.tool()
-def list_windows(filter: dict | None = None,
-                 visible_only: bool = True, titled_only: bool = True) -> dict[str, Any]:
+def list_windows(
+    filter: dict | None = None, visible_only: bool = True, titled_only: bool = True
+) -> dict[str, Any]:
     """List top-level windows. Optionally filter by spec dict.
 
     filter spec: {process, title_contains, title_regex, hwnd, pid, title}
@@ -371,7 +401,9 @@ def focus(match: dict, raise_window: bool = False) -> dict[str, Any]:
         "exe": tk.exe_name,
         "pid": tk.pid,
         "fingerprint": tk.fingerprint,
-        "uia_supported": semantic_mod.supports_uia(tk.hwnd, tk.pid) if semantic_mod.HAS_UIA else False,
+        "uia_supported": semantic_mod.supports_uia(tk.hwnd, tk.pid)
+        if semantic_mod.HAS_UIA
+        else False,
     }
 
 
@@ -447,13 +479,19 @@ def find(token: str, target: str, fuzzy: bool = True, threshold: float = 0.6) ->
 
 
 @mcp.tool()
-def click(token: str | None = None, target: str | None = None,
-          x: int | None = None, y: int | None = None,
-          button: str = "left", clicks: int = 1,
-          verify: bool = False, verify_text: str | None = None,
-          verify_text_disappears: bool = False,
-          verify_timeout_ms: int = 2000,
-          prefer_invoke: bool = True) -> dict[str, Any]:
+def click(
+    token: str | None = None,
+    target: str | None = None,
+    x: int | None = None,
+    y: int | None = None,
+    button: str = "left",
+    clicks: int = 1,
+    verify: bool = False,
+    verify_text: str | None = None,
+    verify_text_disappears: bool = False,
+    verify_timeout_ms: int = 2000,
+    prefer_invoke: bool = True,
+) -> dict[str, Any]:
     """Click. Three call modes:
     - click(x, y) - direct screen coords
     - click(token, target='Save') - find target in focused window then click center
@@ -486,8 +524,8 @@ def click(token: str | None = None, target: str | None = None,
 
     target_x, target_y = None, None
     backend = "direct"
-    tk: Optional[FocusToken] = None
-    invoke_control: Optional[object] = None  # populated when UIA invoke is viable
+    tk: FocusToken | None = None
+    invoke_control: object | None = None  # populated when UIA invoke is viable
 
     if x is not None and y is not None:
         target_x, target_y = int(x), int(y)
@@ -508,8 +546,7 @@ def click(token: str | None = None, target: str | None = None,
             backend = r.backend
             # Only meaningful for single-click left-clicks; right-click and
             # double-click semantics aren't captured by UIA patterns.
-            if (prefer_invoke and button == "left" and clicks == 1
-                    and r.controls):
+            if prefer_invoke and button == "left" and clicks == 1 and r.controls:
                 ctrl = r.controls[0]
                 if ctrl is not None and semantic_mod.is_invoke_trusted(ctrl):
                     invoke_control = ctrl
@@ -528,39 +565,46 @@ def click(token: str | None = None, target: str | None = None,
         live = tk.current_bounds()
         if live is None:
             return {
-                "ok": False, "error": "window_disappeared",
-                "x": target_x, "y": target_y,
+                "ok": False,
+                "error": "window_disappeared",
+                "x": target_x,
+                "y": target_y,
             }
         if not live.contains_point(target_x, target_y):
             return {
-                "ok": False, "error": "click_outside_window",
-                "x": target_x, "y": target_y,
+                "ok": False,
+                "error": "click_outside_window",
+                "x": target_x,
+                "y": target_y,
                 "window_bounds": live.to_dict(),
                 "backend": backend,
                 "hint": "target resolved to coords outside the token's current "
-                        "window. Window may have moved or resized since focus. "
-                        "Try focus() then click() again.",
+                "window. Window may have moved or resized since focus. "
+                "Try focus() then click() again.",
             }
     # For raw click(x, y) and click(token) (no target), don't refuse but warn
     # if obviously off-screen (outside virtual desktop).
     if invoke_control is None and not _point_on_any_monitor(target_x, target_y):
         return {
-            "ok": False, "error": "click_off_screen",
-            "x": target_x, "y": target_y,
-            "hint": "coords are outside the virtual desktop (no monitor covers "
-                    "this point).",
+            "ok": False,
+            "error": "click_off_screen",
+            "x": target_x,
+            "y": target_y,
+            "hint": "coords are outside the virtual desktop (no monitor covers this point).",
         }
 
     # UIA invoke fast path: no mouse motion, no pixel math. The most reliable
     # click we can deliver. If the pattern call fails, fall through to the
     # geometric click as a safety net.
     out: dict[str, Any]
-    invoke_result: Optional[dict] = None
+    invoke_result: dict | None = None
     if invoke_control is not None:
         invoke_result = semantic_mod.try_pattern_click(invoke_control)
         if invoke_result.get("ok"):
             out = {
-                "ok": True, "x": target_x, "y": target_y,
+                "ok": True,
+                "x": target_x,
+                "y": target_y,
                 "backend": f"{backend}+invoke",
                 "click_method": "uia_pattern",
                 "pattern": invoke_result["pattern"],
@@ -569,14 +613,20 @@ def click(token: str | None = None, target: str | None = None,
             log.info("uia_invoke_failed,falling_back_to_mouse: %s", invoke_result)
             input_mod.click(x=target_x, y=target_y, button=button, clicks=int(clicks))
             out = {
-                "ok": True, "x": target_x, "y": target_y, "backend": backend,
+                "ok": True,
+                "x": target_x,
+                "y": target_y,
+                "backend": backend,
                 "click_method": "mouse_after_invoke_failed",
                 "invoke_attempt": invoke_result,
             }
     else:
         input_mod.click(x=target_x, y=target_y, button=button, clicks=int(clicks))
         out = {
-            "ok": True, "x": target_x, "y": target_y, "backend": backend,
+            "ok": True,
+            "x": target_x,
+            "y": target_y,
+            "backend": backend,
             "click_method": "mouse",
         }
     if verify and token is not None:
@@ -584,17 +634,22 @@ def click(token: str | None = None, target: str | None = None,
         if verify_text:
             if verify_text_disappears:
                 out["verified"] = verify_mod.wait_for_no_text(
-                    tk, verify_text, timeout_ms=verify_timeout_ms,
+                    tk,
+                    verify_text,
+                    timeout_ms=verify_timeout_ms,
                 )
                 out["verify_mode"] = "text_disappears"
             else:
                 out["verified"] = verify_mod.wait_for_text(
-                    tk, verify_text, timeout_ms=verify_timeout_ms,
+                    tk,
+                    verify_text,
+                    timeout_ms=verify_timeout_ms,
                 )
                 out["verify_mode"] = "text_appears"
         else:
             out["verified"] = verify_mod.wait_for_drift(
-                tk, timeout_ms=verify_timeout_ms,
+                tk,
+                timeout_ms=verify_timeout_ms,
             )
             out["verify_mode"] = "fingerprint_drift"
     return out
@@ -713,6 +768,7 @@ def iris_status() -> dict[str, Any]:
     """Diagnostics: backend availability, OCR, UIA, cache stats, version."""
     from iris._version import __version__
     from iris.tesseract_bootstrap import locate_tesseract
+
     tess = locate_tesseract()
     return {
         "version": __version__,
@@ -748,8 +804,7 @@ def clipboard_set(text: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def list_processes(name_contains: str | None = None,
-                   limit: int = 200) -> dict[str, Any]:
+def list_processes(name_contains: str | None = None, limit: int = 200) -> dict[str, Any]:
     """List running processes. Filter by case-insensitive name substring."""
     return system_mod.list_processes(name_contains=name_contains, limit=int(limit))
 
@@ -768,8 +823,7 @@ def kill_process(pid: int, force: bool = False) -> dict[str, Any]:
 
 
 @mcp.tool()
-def notify(title: str, body: str = "",
-           duration_seconds: float = 5.0) -> dict[str, Any]:
+def notify(title: str, body: str = "", duration_seconds: float = 5.0) -> dict[str, Any]:
     """Show a Windows toast notification. Requires the `winsdk` package
     for the modern Toast backend."""
     return system_mod.notify(title, body, duration_seconds=float(duration_seconds))
@@ -800,8 +854,7 @@ def window_close(hwnd: int) -> dict[str, Any]:
 
 
 @mcp.tool()
-def registry_read(hive: str, key_path: str,
-                  value_name: str = "") -> dict[str, Any]:
+def registry_read(hive: str, key_path: str, value_name: str = "") -> dict[str, Any]:
     """Read a Windows registry value. hive: HKLM/HKCU/HKCR/HKU/HKCC."""
     return system_mod.registry_read(hive, key_path, value_name)
 
@@ -813,22 +866,35 @@ def registry_list_values(hive: str, key_path: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def registry_write(hive: str, key_path: str, value_name: str,
-                   value: Any, value_type: str = "REG_SZ",
-                   confirm: bool = False) -> dict[str, Any]:
+def registry_write(
+    hive: str,
+    key_path: str,
+    value_name: str,
+    value: Any,
+    value_type: str = "REG_SZ",
+    confirm: bool = False,
+) -> dict[str, Any]:
     """Write a Windows registry value. Requires confirm=True for safety."""
     return system_mod.registry_write(
-        hive, key_path, value_name, value,
-        value_type=value_type, confirm=bool(confirm),
+        hive,
+        key_path,
+        value_name,
+        value,
+        value_type=value_type,
+        confirm=bool(confirm),
     )
 
 
 @mcp.tool()
-def registry_delete_value(hive: str, key_path: str, value_name: str,
-                          confirm: bool = False) -> dict[str, Any]:
+def registry_delete_value(
+    hive: str, key_path: str, value_name: str, confirm: bool = False
+) -> dict[str, Any]:
     """Delete a Windows registry value. Requires confirm=True."""
     return system_mod.registry_delete_value(
-        hive, key_path, value_name, confirm=bool(confirm),
+        hive,
+        key_path,
+        value_name,
+        confirm=bool(confirm),
     )
 
 
@@ -889,6 +955,7 @@ def main() -> None:
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
         import json
+
         print(json.dumps(run_self_test_impl(), indent=2))
         sys.exit(0)
     main()

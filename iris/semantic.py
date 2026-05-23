@@ -3,15 +3,16 @@
 Asks Windows directly what controls a window has, instead of looking at pixels.
 Falls back gracefully (returns empty) for windows with no usable UIA tree.
 """
+
 from __future__ import annotations
-import time
+
 from dataclasses import dataclass
-from typing import Optional
 
 from iris.geometry import Rect
 
 try:
     import uiautomation as auto
+
     HAS_UIA = True
 except ImportError:
     HAS_UIA = False
@@ -20,13 +21,13 @@ except ImportError:
 @dataclass(frozen=True)
 class UIAControl:
     name: str
-    role: str               # ControlTypeName, e.g. "ButtonControl"
+    role: str  # ControlTypeName, e.g. "ButtonControl"
     automation_id: str
     class_name: str
-    bounds: Rect            # screen-absolute
+    bounds: Rect  # screen-absolute
     enabled: bool
     is_offscreen: bool
-    raw: object = None      # the underlying uiautomation.Control (not serialized)
+    raw: object = None  # the underlying uiautomation.Control (not serialized)
 
     def to_dict(self) -> dict:
         return {
@@ -40,7 +41,7 @@ class UIAControl:
         }
 
 
-def _control_to_uia(control) -> Optional[UIAControl]:
+def _control_to_uia(control) -> UIAControl | None:
     if control is None:
         return None
     try:
@@ -79,7 +80,7 @@ def control_for_hwnd(hwnd: int):
         return None
 
 
-def control_from_point(x: int, y: int) -> Optional[UIAControl]:
+def control_from_point(x: int, y: int) -> UIAControl | None:
     """Return the UIA control under screen-absolute (x, y), or None.
 
     Used to upgrade OCR text hits to the enclosing clickable widget. The text
@@ -103,9 +104,12 @@ def control_from_point(x: int, y: int) -> Optional[UIAControl]:
 # button itself, so the OS-synthesized invoke goes nowhere). When we see one
 # of these in the ancestor chain we refuse to invoke and force a geometric
 # mouse click instead. Add other offenders here as the bench finds them.
-_INVOKE_DENYLIST_CLASSES = frozenset({
-    "TkTopLevel", "TkChild",
-})
+_INVOKE_DENYLIST_CLASSES = frozenset(
+    {
+        "TkTopLevel",
+        "TkChild",
+    }
+)
 
 
 def _has_denylisted_ancestor(raw_control, max_levels: int = 10) -> bool:
@@ -173,7 +177,7 @@ def is_invoke_trusted(control: UIAControl) -> bool:
     return not _has_denylisted_ancestor(control.raw)
 
 
-def find_clickable_ancestor(control: UIAControl, max_levels: int = 6) -> Optional[UIAControl]:
+def find_clickable_ancestor(control: UIAControl, max_levels: int = 6) -> UIAControl | None:
     """Walk up the UIA parent chain looking for the smallest invokable ancestor.
 
     A label inside a button is not itself invokable; its parent Button is.
@@ -228,10 +232,10 @@ def supports_uia(hwnd: int, pid: int) -> bool:
 def query(
     hwnd: int,
     *,
-    name: Optional[str] = None,
-    role: Optional[str] = None,
-    automation_id: Optional[str] = None,
-    class_name: Optional[str] = None,
+    name: str | None = None,
+    role: str | None = None,
+    automation_id: str | None = None,
+    class_name: str | None = None,
     max_depth: int = 8,
     max_results: int = 50,
 ) -> list[UIAControl]:
@@ -327,10 +331,10 @@ def try_pattern_click(control: UIAControl) -> dict:
         return {"ok": False, "reason": "no_control"}
     raw = control.raw
     attempts = [
-        ("GetInvokePattern",         "Invoke",   "invoke"),
-        ("GetTogglePattern",         "Toggle",   "toggle"),
-        ("GetSelectionItemPattern",  "Select",   "selection_item"),
-        ("GetExpandCollapsePattern", "Expand",   "expand_collapse"),
+        ("GetInvokePattern", "Invoke", "invoke"),
+        ("GetTogglePattern", "Toggle", "toggle"),
+        ("GetSelectionItemPattern", "Select", "selection_item"),
+        ("GetExpandCollapsePattern", "Expand", "expand_collapse"),
     ]
     for getter, action_name, label in attempts:
         try:
@@ -347,7 +351,7 @@ def try_pattern_click(control: UIAControl) -> dict:
     return {"ok": False, "reason": "no_clickable_pattern"}
 
 
-def invoke(control: UIAControl, action: str = "click", value: Optional[str] = None) -> dict:
+def invoke(control: UIAControl, action: str = "click", value: str | None = None) -> dict:
     """Invoke an action on a control using the right UIA pattern.
 
     actions:
@@ -376,6 +380,7 @@ def invoke(control: UIAControl, action: str = "click", value: Optional[str] = No
             # Fallback: positional click via center of bbox
             try:
                 import pyautogui
+
                 cx, cy = control.bounds.center
                 pyautogui.click(cx, cy)
                 return {"ok": True, "pattern": "positional"}

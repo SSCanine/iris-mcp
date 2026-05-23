@@ -5,14 +5,13 @@ suggest_alternatives(). The boost rewards candidates that share concept words
 with the target (e.g. 'Mic/Aux' vs 'GoXLR Mic' both contain 'mic') even when
 edit-distance is mediocre.
 """
+
 from __future__ import annotations
 
-import pytest
-
-from iris.geometry import Rect
-from iris.resolver import _tokenize, _token_overlap, find, suggest_alternatives
-from iris.tokens import FocusToken
 from iris import resolver as resolver_mod
+from iris.geometry import Rect
+from iris.resolver import _token_overlap, _tokenize, find, suggest_alternatives
+from iris.tokens import FocusToken
 
 
 # ---------------------------------------------------------------------------
@@ -66,13 +65,18 @@ def test_token_overlap_zero_when_either_side_empty():
 # ---------------------------------------------------------------------------
 def _token():
     return FocusToken.create(
-        hwnd=123, pid=1, exe_name="x.exe", title="X",
-        monitor_index=0, bounds=Rect(0, 0, 100, 100),
+        hwnd=123,
+        pid=1,
+        exe_name="x.exe",
+        title="X",
+        monitor_index=0,
+        bounds=Rect(0, 0, 100, 100),
     )
 
 
 class _FakeOCRMatch:
     """Stand-in for vision.TextMatch with the to_dict shape."""
+
     def __init__(self, text: str, similarity: float):
         self.text = text
         self.similarity = similarity
@@ -91,18 +95,19 @@ def test_find_nearest_matches_ranks_token_overlap_winner_first(monkeypatch):
     With the new ranker, GoXLR Mic must appear before Mixer in nearest_matches.
     """
     # Force OCR path: UIA off, real capture stubbed.
-    monkeypatch.setattr(resolver_mod, "token_inspect",
-                        lambda tk: {"alive": True, "minimized": False,
-                                    "occluded": False, "off_screen": False})
+    monkeypatch.setattr(
+        resolver_mod,
+        "token_inspect",
+        lambda tk: {"alive": True, "minimized": False, "occluded": False, "off_screen": False},
+    )
     monkeypatch.setattr(resolver_mod.semantic_mod, "HAS_UIA", False)
     monkeypatch.setattr(resolver_mod, "_capture_window", lambda tk: object())
-    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr",
-                        lambda token_id, img: ["fake_words"])
+    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr", lambda token_id, img: ["fake_words"])
     monkeypatch.setattr(resolver_mod.spatial_mod, "is_occluded", lambda hwnd: False)
     # First call (threshold=0.6) returns no matches (forces nearest path).
     # Second call (threshold=0.4) returns soft hits we can rank.
     soft_hits = [
-        _FakeOCRMatch("Mixer", 0.5),       # higher edit-similarity, no token overlap
+        _FakeOCRMatch("Mixer", 0.5),  # higher edit-similarity, no token overlap
         _FakeOCRMatch("GoXLR Mic", 0.42),  # lower edit-similarity, but shares 'mic'
     ]
 
@@ -115,8 +120,9 @@ def test_find_nearest_matches_ranks_token_overlap_winner_first(monkeypatch):
         return soft_hits
 
     monkeypatch.setattr(resolver_mod.vision_mod, "find_text_in_image", fake_find_text)
-    monkeypatch.setattr(resolver_mod.vision_mod, "encode_jpeg",
-                        lambda img, quality, optimize_tokens: (b"", 1, 1))
+    monkeypatch.setattr(
+        resolver_mod.vision_mod, "encode_jpeg", lambda img, quality, optimize_tokens: (b"", 1, 1)
+    )
 
     r = find(_token(), "Mic/Aux", capture_for_handoff=False)
     assert not r.found
@@ -128,22 +134,25 @@ def test_find_nearest_matches_ranks_token_overlap_winner_first(monkeypatch):
 
 
 def test_find_nearest_matches_includes_token_overlap_field(monkeypatch):
-    monkeypatch.setattr(resolver_mod, "token_inspect",
-                        lambda tk: {"alive": True, "minimized": False,
-                                    "occluded": False, "off_screen": False})
+    monkeypatch.setattr(
+        resolver_mod,
+        "token_inspect",
+        lambda tk: {"alive": True, "minimized": False, "occluded": False, "off_screen": False},
+    )
     monkeypatch.setattr(resolver_mod.semantic_mod, "HAS_UIA", False)
     monkeypatch.setattr(resolver_mod, "_capture_window", lambda tk: object())
-    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr",
-                        lambda token_id, img: ["fake"])
+    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr", lambda token_id, img: ["fake"])
     monkeypatch.setattr(resolver_mod.spatial_mod, "is_occluded", lambda hwnd: False)
 
     def fake_find_text(words, target, fuzzy, threshold):
         if threshold > 0.5:
             return []
         return [_FakeOCRMatch("Audio", 0.45)]
+
     monkeypatch.setattr(resolver_mod.vision_mod, "find_text_in_image", fake_find_text)
-    monkeypatch.setattr(resolver_mod.vision_mod, "encode_jpeg",
-                        lambda img, quality, optimize_tokens: (b"", 1, 1))
+    monkeypatch.setattr(
+        resolver_mod.vision_mod, "encode_jpeg", lambda img, quality, optimize_tokens: (b"", 1, 1)
+    )
 
     r = find(_token(), "Audio Mixer", capture_for_handoff=False)
     assert r.nearest_matches
@@ -158,15 +167,15 @@ def test_suggest_alternatives_token_overlap_promotes_concept_match(monkeypatch):
     monkeypatch.setattr(resolver_mod.semantic_mod, "HAS_UIA", False)
     # Stub OCR pipeline to return two candidates with known similarity scores.
     monkeypatch.setattr(resolver_mod, "_capture_window", lambda tk: object())
-    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr",
-                        lambda token_id, img: ["fake"])
+    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr", lambda token_id, img: ["fake"])
 
     soft = [
-        _FakeOCRMatch("Mixer", 0.55),       # decent similarity, zero overlap
-        _FakeOCRMatch("GoXLR Mic", 0.42),   # weaker similarity, but shares 'mic'
+        _FakeOCRMatch("Mixer", 0.55),  # decent similarity, zero overlap
+        _FakeOCRMatch("GoXLR Mic", 0.42),  # weaker similarity, but shares 'mic'
     ]
-    monkeypatch.setattr(resolver_mod.vision_mod, "find_text_in_image",
-                        lambda words, target, fuzzy, threshold: soft)
+    monkeypatch.setattr(
+        resolver_mod.vision_mod, "find_text_in_image", lambda words, target, fuzzy, threshold: soft
+    )
 
     out = suggest_alternatives(_token(), "Mic/Aux")
     cands = out["candidates"]
@@ -181,15 +190,15 @@ def test_suggest_alternatives_falls_back_to_similarity_when_no_overlap(monkeypat
     """When no candidate shares concept words, ranking still works on similarity+area."""
     monkeypatch.setattr(resolver_mod.semantic_mod, "HAS_UIA", False)
     monkeypatch.setattr(resolver_mod, "_capture_window", lambda tk: object())
-    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr",
-                        lambda token_id, img: ["fake"])
+    monkeypatch.setattr(resolver_mod.vision_mod, "cached_ocr", lambda token_id, img: ["fake"])
 
     soft = [
         _FakeOCRMatch("Apple", 0.45),
         _FakeOCRMatch("Banana", 0.55),
     ]
-    monkeypatch.setattr(resolver_mod.vision_mod, "find_text_in_image",
-                        lambda words, target, fuzzy, threshold: soft)
+    monkeypatch.setattr(
+        resolver_mod.vision_mod, "find_text_in_image", lambda words, target, fuzzy, threshold: soft
+    )
 
     out = suggest_alternatives(_token(), "Cherry")
     cands = out["candidates"]

@@ -1,11 +1,14 @@
-from iris.tokens import FocusToken, TokenRegistry, default_registry
 from iris.geometry import Rect
+from iris.tokens import FocusToken, TokenRegistry, default_registry
 
 
 def _make():
     return FocusToken.create(
-        hwnd=1234, pid=99, exe_name="obs64.exe",
-        title="OBS Studio", monitor_index=1,
+        hwnd=1234,
+        pid=99,
+        exe_name="obs64.exe",
+        title="OBS Studio",
+        monitor_index=1,
         bounds=Rect(0, 0, 1920, 1080),
     )
 

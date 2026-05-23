@@ -1,5 +1,5 @@
-from iris.vision import find_text_in_image, OCRWord
 from iris.geometry import Rect
+from iris.vision import OCRWord, find_text_in_image
 
 
 def _w(text, x=0, y=0, w=50, h=20, conf=0.9):

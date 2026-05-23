@@ -1,4 +1,4 @@
-from iris.fingerprint import compute_fingerprint, compare, collect_button_names
+from iris.fingerprint import collect_button_names, compare, compute_fingerprint
 
 
 def _node(role, name, depth=0):

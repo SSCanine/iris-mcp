@@ -21,12 +21,12 @@ Implementation notes:
 * This module deliberately does NOT depend on pyautogui or pygetwindow. We
   want a clean, minimal SendInput path so the click semantics are predictable.
 """
+
 from __future__ import annotations
 
 import ctypes
 import time
 from ctypes import wintypes
-from typing import Optional
 
 try:
     _user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -41,19 +41,19 @@ except (AttributeError, OSError):
 INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
 
-MOUSEEVENTF_MOVE        = 0x0001
-MOUSEEVENTF_LEFTDOWN    = 0x0002
-MOUSEEVENTF_LEFTUP      = 0x0004
-MOUSEEVENTF_RIGHTDOWN   = 0x0008
-MOUSEEVENTF_RIGHTUP     = 0x0010
-MOUSEEVENTF_MIDDLEDOWN  = 0x0020
-MOUSEEVENTF_MIDDLEUP    = 0x0040
-MOUSEEVENTF_WHEEL       = 0x0800
-MOUSEEVENTF_ABSOLUTE    = 0x8000
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_ABSOLUTE = 0x8000
 MOUSEEVENTF_VIRTUALDESK = 0x4000
 
-SM_XVIRTUALSCREEN  = 76
-SM_YVIRTUALSCREEN  = 77
+SM_XVIRTUALSCREEN = 76
+SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
 SM_CYVIRTUALSCREEN = 79
 
@@ -150,7 +150,12 @@ def _mouse_input(flags: int, x: int = 0, y: int = 0, data: int = 0) -> _INPUT:
     inp = _INPUT()
     inp.type = INPUT_MOUSE
     inp.mi = _MOUSEINPUT(
-        dx=x, dy=y, mouseData=data, dwFlags=flags, time=0, dwExtraInfo=None,
+        dx=x,
+        dy=y,
+        mouseData=data,
+        dwFlags=flags,
+        time=0,
+        dwExtraInfo=None,
     )
     return inp
 
@@ -172,22 +177,29 @@ def move(x: int, y: int) -> None:
     if not HAS_SENDINPUT:
         return
     nx, ny = _to_absolute(int(x), int(y))
-    _send(_mouse_input(
-        MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
-        x=nx, y=ny,
-    ))
+    _send(
+        _mouse_input(
+            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
+            x=nx,
+            y=ny,
+        )
+    )
 
 
 _BUTTON_FLAGS = {
-    "left":   (MOUSEEVENTF_LEFTDOWN,   MOUSEEVENTF_LEFTUP),
-    "right":  (MOUSEEVENTF_RIGHTDOWN,  MOUSEEVENTF_RIGHTUP),
+    "left": (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
+    "right": (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
     "middle": (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
 }
 
 
-def click(x: Optional[int] = None, y: Optional[int] = None,
-          button: str = "left", clicks: int = 1,
-          double_click_gap_ms: int = 60) -> dict:
+def click(
+    x: int | None = None,
+    y: int | None = None,
+    button: str = "left",
+    clicks: int = 1,
+    double_click_gap_ms: int = 60,
+) -> dict:
     """Click at (x, y) or at current position.
 
     Atomic: cursor move and button down/up are submitted in the same SendInput
@@ -202,10 +214,13 @@ def click(x: Optional[int] = None, y: Optional[int] = None,
     events: list[_INPUT] = []
     if x is not None and y is not None:
         nx, ny = _to_absolute(int(x), int(y))
-        events.append(_mouse_input(
-            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
-            x=nx, y=ny,
-        ))
+        events.append(
+            _mouse_input(
+                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
+                x=nx,
+                y=ny,
+            )
+        )
     # First click: emit move + down + up in one batch.
     first = list(events) + [_mouse_input(down_flag), _mouse_input(up_flag)]
     sent = _send(*first)
@@ -217,12 +232,16 @@ def click(x: Optional[int] = None, y: Optional[int] = None,
         sent += _send(_mouse_input(down_flag), _mouse_input(up_flag))
     final_x, final_y = position()
     return {
-        "ok": True, "x": final_x, "y": final_y,
-        "events_sent": sent, "button": button, "clicks": int(clicks),
+        "ok": True,
+        "x": final_x,
+        "y": final_y,
+        "events_sent": sent,
+        "button": button,
+        "clicks": int(clicks),
     }
 
 
-def scroll(amount: int, x: Optional[int] = None, y: Optional[int] = None) -> dict:
+def scroll(amount: int, x: int | None = None, y: int | None = None) -> dict:
     """Wheel scroll. Positive=up, negative=down. WHEEL_DELTA=120 per notch."""
     if not HAS_SENDINPUT:
         return {"ok": False, "reason": "sendinput_unavailable"}
@@ -233,9 +252,15 @@ def scroll(amount: int, x: Optional[int] = None, y: Optional[int] = None) -> dic
     return {"ok": True, "amount": int(amount)}
 
 
-def drag(start_x: int, start_y: int, end_x: int, end_y: int,
-         button: str = "left", duration_ms: int = 250,
-         steps: int = 20) -> dict:
+def drag(
+    start_x: int,
+    start_y: int,
+    end_x: int,
+    end_y: int,
+    button: str = "left",
+    duration_ms: int = 250,
+    steps: int = 20,
+) -> dict:
     """Press-and-drag from start to end with stepped motion.
 
     Stepped motion (not a teleport) is critical because many apps interpret
@@ -264,5 +289,7 @@ def drag(start_x: int, start_y: int, end_x: int, end_y: int,
         "ok": True,
         "from": [int(start_x), int(start_y)],
         "to": [int(end_x), int(end_y)],
-        "steps": steps, "duration_ms": duration_ms, "button": button,
+        "steps": steps,
+        "duration_ms": duration_ms,
+        "button": button,
     }

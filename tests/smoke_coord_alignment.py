@@ -6,6 +6,7 @@ the height of a title bar, every OCR-driven click misses.
 
 Run from the repo root: python tests/smoke_coord_alignment.py
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -28,8 +29,9 @@ def main() -> int:
             ctypes.windll.user32.SetProcessDPIAware()
 
     import win32gui
-    from iris import vision as vision_mod
+
     from iris import spatial as spatial_mod
+    from iris import vision as vision_mod
 
     # Open notepad as a clean test subject (system app, predictable rect).
     # Modern Notepad on Win11 is a Store app that runs as a child of a launcher;

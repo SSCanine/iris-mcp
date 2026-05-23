@@ -1,4 +1,5 @@
 """Unit tests for spatial.current_bounds + token.current_bounds()."""
+
 from __future__ import annotations
 
 import pytest
@@ -34,15 +35,23 @@ def test_token_current_bounds_proxies_to_spatial():
         pytest.skip("no live windows to probe")
     live = pool[0]
     tk = FocusToken.create(
-        hwnd=live.hwnd, pid=live.pid, exe_name=live.exe_name,
-        title=live.title, monitor_index=0, bounds=live.bounds,
+        hwnd=live.hwnd,
+        pid=live.pid,
+        exe_name=live.exe_name,
+        title=live.title,
+        monitor_index=0,
+        bounds=live.bounds,
     )
     assert tk.current_bounds() == spatial_mod.current_bounds(live.hwnd)
 
 
 def test_token_current_bounds_returns_none_for_dead_token():
     tk = FocusToken.create(
-        hwnd=0, pid=0, exe_name="dead", title="",
-        monitor_index=0, bounds=Rect(0, 0, 0, 0),
+        hwnd=0,
+        pid=0,
+        exe_name="dead",
+        title="",
+        monitor_index=0,
+        bounds=Rect(0, 0, 0, 0),
     )
     assert tk.current_bounds() is None

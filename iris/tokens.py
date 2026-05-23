@@ -1,9 +1,10 @@
 """FocusToken: stateful handle for a window Iris is attending to."""
+
 from __future__ import annotations
+
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional
 
 from iris.geometry import Rect
 
@@ -17,8 +18,8 @@ class FocusToken:
     title_at_creation: str
     monitor_index: int
     bounds_at_creation: Rect
-    fingerprint: Optional[str] = None
-    parent_hwnd: Optional[int] = None
+    fingerprint: str | None = None
+    parent_hwnd: int | None = None
     created_at: float = field(default_factory=time.time)
     last_revalidated_at: float = 0.0
     last_revalidation_result: bool = True
@@ -32,8 +33,8 @@ class FocusToken:
         title: str,
         monitor_index: int,
         bounds: Rect,
-        fingerprint: Optional[str] = None,
-    ) -> "FocusToken":
+        fingerprint: str | None = None,
+    ) -> FocusToken:
         return cls(
             id=str(uuid.uuid4())[:8],
             hwnd=hwnd,
@@ -48,7 +49,7 @@ class FocusToken:
     def age_seconds(self) -> float:
         return time.time() - self.created_at
 
-    def current_bounds(self) -> Optional[Rect]:
+    def current_bounds(self) -> Rect | None:
         """Live screen-absolute bounds. None if the window is dead/minimized.
 
         Use this anywhere coords matter (OCR translation, click clamp). The
@@ -57,6 +58,7 @@ class FocusToken:
         right now.
         """
         from iris import spatial as _spatial
+
         return _spatial.current_bounds(self.hwnd)
 
     def to_dict(self) -> dict:
@@ -83,7 +85,7 @@ class TokenRegistry:
     def store(self, token: FocusToken) -> None:
         self._tokens[token.id] = token
 
-    def get(self, token_id: str) -> Optional[FocusToken]:
+    def get(self, token_id: str) -> FocusToken | None:
         return self._tokens.get(token_id)
 
     def remove(self, token_id: str) -> None:
@@ -169,9 +171,13 @@ def inspect(token: FocusToken) -> dict:
         return {"id": token.id, "alive": False, "reason": "hwnd_dead_no_repair"}
     try:
         import win32gui
+
         from iris.spatial import (
-            _make_window_info, get_monitor_for_window, is_occluded,
-            find_popups_for, list_monitors,
+            _make_window_info,
+            find_popups_for,
+            get_monitor_for_window,
+            is_occluded,
+            list_monitors,
         )
     except ImportError:
         return {"id": token.id, "alive": valid}

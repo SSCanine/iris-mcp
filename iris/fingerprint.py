@@ -1,7 +1,8 @@
 """Drift detection: fingerprint a window's UIA structure, compare for changes."""
+
 from __future__ import annotations
+
 import hashlib
-from typing import Optional
 
 
 def compute_fingerprint(uia_dump: list[dict]) -> str:
@@ -20,8 +21,7 @@ def collect_button_names(uia_dump: list[dict]) -> set[str]:
     return {n["name"] for n in uia_dump if n.get("role") == "ButtonControl" and n.get("name")}
 
 
-def compare(old_dump: list[dict], new_dump: list[dict],
-            old_fingerprint: Optional[str] = None) -> dict:
+def compare(old_dump: list[dict], new_dump: list[dict], old_fingerprint: str | None = None) -> dict:
     """Compare two UIA dumps. Returns drift summary."""
     old_fp = old_fingerprint or compute_fingerprint(old_dump)
     new_fp = compute_fingerprint(new_dump)

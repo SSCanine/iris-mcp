@@ -7,9 +7,9 @@ Run from the repo root:
 
 Outputs a JSON report with pass/fail per check.
 """
+
 from __future__ import annotations
 
-import io
 import json
 import sys
 import time
@@ -45,11 +45,16 @@ def main() -> int:
         try:
             img = vision.capture_window(fg.hwnd)
             non_black = not vision._bitmap_is_black(img)
-            results.append(report(
-                "capture_window_foreground", True,
-                hwnd=fg.hwnd, title=fg.title[:60], size=[img.width, img.height],
-                non_black=non_black,
-            ))
+            results.append(
+                report(
+                    "capture_window_foreground",
+                    True,
+                    hwnd=fg.hwnd,
+                    title=fg.title[:60],
+                    size=[img.width, img.height],
+                    non_black=non_black,
+                )
+            )
         except Exception as e:
             results.append(report("capture_window_foreground", False, error=str(e)))
 
@@ -74,12 +79,17 @@ def main() -> int:
             occluded = spatial.is_occluded(target.hwnd)
             img = vision.capture_window(target.hwnd)
             non_black = not vision._bitmap_is_black(img)
-            results.append(report(
-                "capture_window_occluded", True,
-                hwnd=target.hwnd, title=target.title[:60],
-                occluded=occluded, size=[img.width, img.height],
-                non_black=non_black,
-            ))
+            results.append(
+                report(
+                    "capture_window_occluded",
+                    True,
+                    hwnd=target.hwnd,
+                    title=target.title[:60],
+                    occluded=occluded,
+                    size=[img.width, img.height],
+                    non_black=non_black,
+                )
+            )
         except Exception as e:
             results.append(report("capture_window_occluded", False, error=str(e)))
 
@@ -92,13 +102,16 @@ def main() -> int:
         time.sleep(0.2)
         final = spatial.get_foreground_window_info()
         is_foreground = final is not None and final.hwnd == target.hwnd
-        results.append(report(
-            "bring_to_front", is_foreground,
-            return_value=ok,
-            initial=initial.title[:60] if initial else None,
-            final=final.title[:60] if final else None,
-            target=target.title[:60],
-        ))
+        results.append(
+            report(
+                "bring_to_front",
+                is_foreground,
+                return_value=ok,
+                initial=initial.title[:60] if initial else None,
+                final=final.title[:60] if final else None,
+                target=target.title[:60],
+            )
+        )
         # Politely return focus to original
         if initial is not None and initial.hwnd != target.hwnd:
             spatial.bring_to_front(initial.hwnd)

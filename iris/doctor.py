@@ -13,13 +13,13 @@ Exits 0 if all critical components are available, 1 otherwise.
 Designed to be the first thing a new user runs after install ("does this
 work on my machine"), and the first thing we ask for in bug reports.
 """
+
 from __future__ import annotations
 
 import ctypes
 import os
 import platform
 import sys
-from pathlib import Path
 
 
 # Set DPI awareness FIRST so the monitor topology we print is in physical
@@ -80,7 +80,9 @@ def main() -> int:
         __version__ = f"unknown ({e})"
     print(f"  iris-mcp version       : {__version__}")
     print(f"  python                 : {platform.python_version()} ({sys.executable})")
-    print(f"  platform               : {platform.system()} {platform.release()} ({platform.machine()})")
+    print(
+        f"  platform               : {platform.system()} {platform.release()} ({platform.machine()})"
+    )
 
     critical_ok = True
 
@@ -90,17 +92,22 @@ def main() -> int:
 
     # DPI mode
     label_ok = dpi_mode in ("per_monitor_v2", "per_monitor_v1")
-    print(f"  DPI mode               : "
-          f"{_ok(dpi_mode) if label_ok else _warn(dpi_mode)}"
-          f"  {_gray('(per_monitor_v2 is best)')}")
+    print(
+        f"  DPI mode               : "
+        f"{_ok(dpi_mode) if label_ok else _warn(dpi_mode)}"
+        f"  {_gray('(per_monitor_v2 is best)')}"
+    )
     if dpi_mode == "unaware":
         critical_ok = False
 
     # win32 + UIA + clipboard
     try:
         from iris import spatial as spatial_mod
-        print(f"  Win32 (pywin32)        : "
-              f"{_ok('available') if spatial_mod.HAS_WIN32 else _err('MISSING')}")
+
+        print(
+            f"  Win32 (pywin32)        : "
+            f"{_ok('available') if spatial_mod.HAS_WIN32 else _err('MISSING')}"
+        )
         if not spatial_mod.HAS_WIN32:
             critical_ok = False
     except Exception as e:
@@ -109,34 +116,47 @@ def main() -> int:
 
     try:
         from iris import semantic as semantic_mod
-        print(f"  UIA (uiautomation)     : "
-              f"{_ok('available') if semantic_mod.HAS_UIA else _warn('not installed')}"
-              f"  {_gray('(install for accessibility-tree queries)')}")
+
+        print(
+            f"  UIA (uiautomation)     : "
+            f"{_ok('available') if semantic_mod.HAS_UIA else _warn('not installed')}"
+            f"  {_gray('(install for accessibility-tree queries)')}"
+        )
     except Exception as e:
         print(f"  UIA (uiautomation)     : {_warn(f'import failed: {e}')}")
 
     try:
         from iris import system as system_mod
-        print(f"  Clipboard (win32clip.) : "
-              f"{_ok('available') if system_mod.HAS_CLIPBOARD else _warn('not installed')}")
-        print(f"  psutil (processes)     : "
-              f"{_ok('available') if system_mod.HAS_PSUTIL else _warn('not installed')}")
-        print(f"  winreg (registry)      : "
-              f"{_ok('available') if system_mod.HAS_WINREG else _warn('not Windows')}")
+
+        print(
+            f"  Clipboard (win32clip.) : "
+            f"{_ok('available') if system_mod.HAS_CLIPBOARD else _warn('not installed')}"
+        )
+        print(
+            f"  psutil (processes)     : "
+            f"{_ok('available') if system_mod.HAS_PSUTIL else _warn('not installed')}"
+        )
+        print(
+            f"  winreg (registry)      : "
+            f"{_ok('available') if system_mod.HAS_WINREG else _warn('not Windows')}"
+        )
     except Exception as e:
         print(f"  system module          : {_warn(f'import failed: {e}')}")
 
     # Tesseract
     try:
-        from iris.tesseract_bootstrap import locate_tesseract
         from iris import vision as vision_mod
+        from iris.tesseract_bootstrap import locate_tesseract
+
         tess = locate_tesseract()
         if tess:
             print(f"  Tesseract OCR          : {_ok(str(tess))}")
         else:
-            print(f"  Tesseract OCR          : "
-                  f"{_warn('not found')}  "
-                  f"{_gray('OCR fallback disabled. Install via winget install UB-Mannheim.TesseractOCR')}")
+            print(
+                f"  Tesseract OCR          : "
+                f"{_warn('not found')}  "
+                f"{_gray('OCR fallback disabled. Install via winget install UB-Mannheim.TesseractOCR')}"
+            )
         if not vision_mod._TESSERACT_OK:
             print(f"  Tesseract Python bind  : {_warn('pytesseract import failed')}")
     except Exception as e:
@@ -145,21 +165,26 @@ def main() -> int:
     # Toast notifications (optional)
     try:
         from winsdk.windows.ui.notifications import ToastNotificationManager  # noqa: F401
+
         print(f"  Toast notifications    : {_ok('available (winsdk)')}")
     except Exception:
-        print(f"  Toast notifications    : "
-              f"{_gray('not installed (optional). pip install iris-mcp[notifications]')}")
+        print(
+            f"  Toast notifications    : "
+            f"{_gray('not installed (optional). pip install iris-mcp[notifications]')}"
+        )
 
     # Monitor topology
     print()
     print(f"{BOLD}Monitors{RESET}")
     try:
         import ctypes.wintypes as wt
+
         user32 = ctypes.windll.user32
         shcore = ctypes.windll.shcore
 
-        @ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p,
-                            ctypes.POINTER(wt.RECT), ctypes.c_void_p)
+        @ctypes.WINFUNCTYPE(
+            ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(wt.RECT), ctypes.c_void_p
+        )
         def cb(hmon, hdc, lprect, lparam):
             r = lprect.contents
             dpi_x = ctypes.c_uint(0)
@@ -169,9 +194,11 @@ def main() -> int:
             except Exception:
                 pass
             scale = f"{dpi_x.value / 96.0:.2f}x" if dpi_x.value else "?"
-            print(f"  ({r.left:>6}, {r.top:>6}) -> ({r.right:>6}, {r.bottom:>6})  "
-                  f"size {r.right - r.left}x{r.bottom - r.top}  "
-                  f"DPI {dpi_x.value}  scale {scale}")
+            print(
+                f"  ({r.left:>6}, {r.top:>6}) -> ({r.right:>6}, {r.bottom:>6})  "
+                f"size {r.right - r.left}x{r.bottom - r.top}  "
+                f"DPI {dpi_x.value}  scale {scale}"
+            )
             return 1
 
         user32.EnumDisplayMonitors(None, None, cb, 0)
@@ -181,9 +208,10 @@ def main() -> int:
     # Config locations
     print()
     print(f"{BOLD}Config locations{RESET}")
-    print(f"  apps.yaml search order:")
+    print("  apps.yaml search order:")
     try:
         from iris.launcher import _apps_yaml_search_paths
+
         for p in _apps_yaml_search_paths():
             mark = _ok("EXISTS") if p.exists() else _gray("not present")
             print(f"    {p}  [{mark}]")

@@ -1,15 +1,15 @@
 """App launcher: start apps from apps.yaml and resolve their windows."""
+
 from __future__ import annotations
+
 import os
-import shlex
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
-from iris.spatial import enumerate_windows, match_window, _make_window_info, get_monitor_for_window
+from iris.spatial import get_monitor_for_window, match_window
 
 
 # Search order for the user's apps.yaml:
@@ -27,11 +27,13 @@ def _apps_yaml_search_paths() -> list[Path]:
     out.append(Path.cwd() / "apps.yaml")
     try:
         from platformdirs import user_config_dir
+
         out.append(Path(user_config_dir("iris-mcp")) / "apps.yaml")
     except ImportError:
         pass
     out.append(Path(__file__).parent.parent / "apps.yaml")
     return out
+
 
 DEFAULT_APPS = {
     "obs": {
@@ -81,13 +83,14 @@ def load_apps() -> dict:
     return merged
 
 
-def write_default_apps_yaml(target: Optional[Path] = None) -> Path:
+def write_default_apps_yaml(target: Path | None = None) -> Path:
     """Materialize a user apps.yaml seeded with DEFAULT_APPS at the user
     config dir (or `target` if given). Returns the path written. Existing
     files are NOT overwritten."""
     if target is None:
         try:
             from platformdirs import user_config_dir
+
             target = Path(user_config_dir("iris-mcp")) / "apps.yaml"
         except ImportError:
             target = Path.cwd() / "apps.yaml"
@@ -114,7 +117,7 @@ def launch(app_name: str, *, wait_seconds: float = 5.0) -> dict:
     # Start the process
     try:
         if launch_spec.startswith("shell:"):
-            cmd = launch_spec[len("shell:"):]
+            cmd = launch_spec[len("shell:") :]
             subprocess.Popen(cmd, shell=True)
         else:
             subprocess.Popen(launch_spec)

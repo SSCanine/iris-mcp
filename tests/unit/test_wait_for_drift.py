@@ -3,6 +3,7 @@
 Mocks the semantic.walk_tree call so tests are deterministic and don't
 require a real Windows desktop.
 """
+
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -14,8 +15,13 @@ from iris.tokens import FocusToken
 
 def _tok():
     return FocusToken.create(
-        hwnd=12345, pid=999, exe_name="test.exe", title="test",
-        monitor_index=0, bounds=Rect(0, 0, 100, 100), fingerprint=None,
+        hwnd=12345,
+        pid=999,
+        exe_name="test.exe",
+        title="test",
+        monitor_index=0,
+        bounds=Rect(0, 0, 100, 100),
+        fingerprint=None,
     )
 
 
@@ -38,8 +44,10 @@ def test_drift_detected_when_tree_changes():
         return sequence[idx]
 
     with patch.object(verify_mod, "_backoff_iter", return_value=iter([10] * 100)):
-        with patch("iris.semantic.walk_tree", side_effect=fake_walk_tree), \
-             patch("iris.semantic.HAS_UIA", True):
+        with (
+            patch("iris.semantic.walk_tree", side_effect=fake_walk_tree),
+            patch("iris.semantic.HAS_UIA", True),
+        ):
             result = verify_mod.wait_for_drift(_tok(), timeout_ms=2000)
 
     assert result["drifted"] is True
@@ -55,8 +63,10 @@ def test_no_drift_when_tree_stable():
         return stable
 
     with patch.object(verify_mod, "_backoff_iter", return_value=iter([10] * 100)):
-        with patch("iris.semantic.walk_tree", side_effect=fake_walk_tree), \
-             patch("iris.semantic.HAS_UIA", True):
+        with (
+            patch("iris.semantic.walk_tree", side_effect=fake_walk_tree),
+            patch("iris.semantic.HAS_UIA", True),
+        ):
             result = verify_mod.wait_for_drift(_tok(), timeout_ms=200)
 
     assert result["drifted"] is False
@@ -71,8 +81,10 @@ def test_uia_unavailable_returns_error():
 
 
 def test_initial_dump_failure_returned():
-    with patch("iris.semantic.HAS_UIA", True), \
-         patch("iris.semantic.walk_tree", side_effect=RuntimeError("hwnd dead")):
+    with (
+        patch("iris.semantic.HAS_UIA", True),
+        patch("iris.semantic.walk_tree", side_effect=RuntimeError("hwnd dead")),
+    ):
         result = verify_mod.wait_for_drift(_tok(), timeout_ms=200)
     assert result["drifted"] is False
     assert "initial_dump_failed" in result.get("error", "")

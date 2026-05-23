@@ -1,5 +1,7 @@
 """Pure geometry primitives. No Win32, no IO."""
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -11,7 +13,7 @@ class Rect:
     height: int
 
     @classmethod
-    def from_ltrb(cls, left: int, top: int, right: int, bottom: int) -> "Rect":
+    def from_ltrb(cls, left: int, top: int, right: int, bottom: int) -> Rect:
         return cls(left, top, right - left, bottom - top)
 
     @property
@@ -38,7 +40,7 @@ class Rect:
     def area(self) -> int:
         return self.width * self.height
 
-    def intersects(self, other: "Rect") -> bool:
+    def intersects(self, other: Rect) -> bool:
         return not (
             self.right <= other.left
             or other.right <= self.left
@@ -46,7 +48,7 @@ class Rect:
             or other.bottom <= self.top
         )
 
-    def intersection_area(self, other: "Rect") -> int:
+    def intersection_area(self, other: Rect) -> int:
         if not self.intersects(other):
             return 0
         ix = max(self.left, other.left)
@@ -61,5 +63,5 @@ class Rect:
     def contains_point(self, x: int, y: int) -> bool:
         return self.left <= x < self.right and self.top <= y < self.bottom
 
-    def shift(self, dx: int, dy: int) -> "Rect":
+    def shift(self, dx: int, dy: int) -> Rect:
         return Rect(self.x + dx, self.y + dy, self.width, self.height)
