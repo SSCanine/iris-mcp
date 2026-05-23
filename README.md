@@ -1,5 +1,11 @@
 # Iris
 
+[![CI](https://github.com/SSCanine/iris-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SSCanine/iris-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](https://www.python.org/)
+[![Windows](https://img.shields.io/badge/platform-Windows%2010%20|%2011-0078D4.svg)]()
+[![MCP](https://img.shields.io/badge/MCP-server-7C3AED.svg)](https://modelcontextprotocol.io/)
+
 **High-precision Windows desktop control for AI agents.**
 A Model Context Protocol (MCP) server that lets LLMs see, find, and click
 real UI on Windows, with sub-pixel accuracy on mixed-DPI multi-monitor
@@ -91,6 +97,50 @@ Add Iris to your Claude Desktop / Claude Code MCP config:
   }
 }
 ```
+
+## Try the examples
+
+Standalone scripts that work with just the Python API (no MCP client
+needed). Read, run, copy:
+
+```powershell
+python examples/01_hello_iris.py             # status + monitor topology
+python examples/02_clipboard_pipeline.py     # read/transform/write clipboard
+python examples/03_open_url_in_chrome.py     # recipe-driven Chrome control
+python examples/04_find_and_click_real_app.py # spawn Notepad, find + UIA invoke
+```
+
+See `examples/README.md` for the index.
+
+## See it actually work
+
+Reference machine: Windows 11 + Python 3.12, three monitors at 100% / 125% /
+150% DPI. Tagged before v0.1.0:
+
+```
+total attempts        : 52
+find rate             : 100.0%
+correct-button rate   : 100.0%
+miss distance  mean   : 0.19 px
+miss distance  p50    : 0.0 px
+miss distance  p95    : 1.0 px
+miss distance  max    : 1.0 px
+backend distribution  : {'ocr': 52}
+OCR -> UIA upgrades   : 52
+```
+
+Per-scenario:
+```
+baseline_static  correct=100.0%  miss_p50=0.0  miss_p95=0.0
+window_dragged   correct=100.0%  miss_p50=0.0  miss_p95=0.0
+window_resized   correct=100.0%  miss_p50=0.0  miss_p95=0.0
+per_monitor      correct=100.0%  miss_p50=0.0  miss_p95=1.0
+raise_then_click correct=100.0%  miss_p50=1.0  miss_p95=1.0
+```
+
+Full transcript: `assets/bench-output.txt`. Doctor diagnostic on the same
+machine: `assets/doctor-output.txt`. Run `python -m iris.bench.runner` on
+your own hardware to compare.
 
 ## Tools the MCP server exposes
 
@@ -197,6 +247,16 @@ steps:
 
 Run with `mcp__iris__run_recipe(name="obs.start_recording")`. Add new
 recipes by dropping `whatever.yaml` into the recipes directory.
+
+### Built-in recipe gallery
+
+| Recipe | Inputs | What it does |
+|---|---|---|
+| `obs.start_recording` | none | Focus OBS, click Start Recording, wait for Stop to appear |
+| `obs.stop_recording` | none | Focus OBS, click Stop Recording, wait for Start to come back |
+| `chrome.open_url` | `url` | Focus Chrome, Ctrl+L, type URL, Enter |
+| `vscode.command_palette` | `command` | Focus VS Code, Ctrl+Shift+P, type command, Enter |
+| `alt_tab_to` | `title_contains` | Bring a matching window to foreground |
 
 ## Live accuracy bench
 

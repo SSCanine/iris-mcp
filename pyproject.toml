@@ -103,10 +103,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# server.py and bench/runner.py MUST set DPI awareness via ctypes before
-# any Win32-importing module loads. That requires module-level code between
-# imports, so E402 is expected.
+# server.py, iris/__main__.py, and bench/runner.py MUST set DPI awareness
+# via ctypes before any Win32-importing module loads. That requires module-
+# level code between imports, so E402 is expected.
 "server.py" = ["E402"]
+"iris/__main__.py" = ["E402"]
 "iris/bench/runner.py" = ["E402"]
 # Availability-probe imports (whose value is just "did this import succeed")
 # are not unused even though they're never referenced.
