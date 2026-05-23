@@ -7,11 +7,11 @@
   "long_description": "Iris is an MCP server that lets LLMs see, find, and click real UI on Windows with sub-pixel accuracy on mixed-DPI multi-monitor setups. Three rendering backends (Win32 spatial, UIA semantic, OCR vision) behind one resolver, so it works on apps that hide from accessibility trees (Tkinter, custom Qt, OBS dock widgets, Resolume panels). Includes clipboard, process, notifications, window state, and registry tools. Comes with a live accuracy bench that lets users verify the click-precision claims on their own machine.",
   "author": {
     "name": "The Iris MCP authors",
-    "url": "https://github.com/CurlyTailLabs/iris-mcp"
+    "url": "https://github.com/SSCanine/iris-mcp"
   },
-  "homepage": "https://github.com/CurlyTailLabs/iris-mcp",
-  "documentation": "https://github.com/CurlyTailLabs/iris-mcp/blob/main/README.md",
-  "support": "https://github.com/CurlyTailLabs/iris-mcp/issues",
+  "homepage": "https://github.com/SSCanine/iris-mcp",
+  "documentation": "https://github.com/SSCanine/iris-mcp/blob/main/README.md",
+  "support": "https://github.com/SSCanine/iris-mcp/issues",
   "license": "MIT",
   "keywords": [
     "windows",

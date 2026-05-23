@@ -6,7 +6,7 @@ matters a lot, so the bar for "what gets merged" is shaped accordingly.
 ## Quick start
 
 ```powershell
-git clone https://github.com/CurlyTailLabs/iris-mcp.git
+git clone https://github.com/SSCanine/iris-mcp.git
 cd iris-mcp
 python -m pip install -e ".[dev]"
 python -m pytest tests/unit tests/integration -q

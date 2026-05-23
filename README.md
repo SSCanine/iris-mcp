@@ -60,7 +60,7 @@ Requires Windows 10/11, Python 3.10+, and Tesseract OCR on PATH.
 
 ```powershell
 # Clone the repo
-git clone https://github.com/CurlyTailLabs/iris-mcp.git
+git clone https://github.com/SSCanine/iris-mcp.git
 cd iris-mcp
 
 # Install dependencies

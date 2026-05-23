@@ -66,11 +66,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/CurlyTailLabs/iris-mcp"
-Documentation = "https://github.com/CurlyTailLabs/iris-mcp/blob/main/README.md"
-Source = "https://github.com/CurlyTailLabs/iris-mcp"
-Issues = "https://github.com/CurlyTailLabs/iris-mcp/issues"
-Changelog = "https://github.com/CurlyTailLabs/iris-mcp/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/SSCanine/iris-mcp"
+Documentation = "https://github.com/SSCanine/iris-mcp/blob/main/README.md"
+Source = "https://github.com/SSCanine/iris-mcp"
+Issues = "https://github.com/SSCanine/iris-mcp/issues"
+Changelog = "https://github.com/SSCanine/iris-mcp/blob/main/CHANGELOG.md"
 
 [project.scripts]
 iris-mcp = "iris.cli:serve"
